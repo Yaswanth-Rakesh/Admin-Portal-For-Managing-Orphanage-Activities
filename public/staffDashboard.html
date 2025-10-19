@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Smart Orphanage – Staff Dashboard</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    /* Your existing CSS remains unchanged */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0f2f5;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      position: relative;
+    }
+    .welcome-message {
+      background: #3498db;
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 18px;
+      font-weight: 500;
+      text-align: center;
+    }
+    .profile-container {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .profile-container h3 {
+      color: #2c3e50;
+      margin-top: 0;
+      font-size: 22px;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 8px;
+    }
+    .profile-details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+    .profile-details div {
+      display: flex;
+      flex-direction: column;
+    }
+    .profile-details label {
+      font-weight: 500;
+      color: #2c3e50;
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
+    .profile-details span {
+      font-size: 15px;
+      color: #333;
+    }
+    h2 {
+      color: #2c3e50;
+      border-bottom: 3px solid #3498db;
+      padding-bottom: 10px;
+      margin-top: 0;
+      font-size: 28px;
+    }
+    .logout-btn {
+      position: absolute;
+      top: 30px;
+      right: 30px;
+      background: #e74c3c;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+    .logout-btn:hover {
+      background: #c0392b;
+      transform: translateY(-2px);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .search-container {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+    .search-box {
+      flex: 1;
+      min-width: 250px;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 15px;
+    }
+    .filter-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .filter-label {
+      font-weight: 500;
+      color: #2c3e50;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+    .filter-select {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 15px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    th {
+      background: #3498db;
+      color: white;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+    }
+    tr:hover {
+      background-color: #f5f5f5;
+    }
+    .status-present {
+      color: #2ecc71;
+      font-weight: 600;
+    }
+    .status-absent {
+      color: #e74c3c;
+      font-weight: 600;
+    }
+    .status-pending {
+      color: #f39c12;
+      font-weight: 600;
+    }
+    .status-resolved {
+      color: #2ecc71;
+      font-weight: 600;
+    }
+    .status-dismissed {
+      color: #95a5a6;
+      font-weight: 600;
+    }
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+    }
+    .no-data {
+      text-align: center;
+      padding: 30px;
+      color: #7f8c8d;
+      font-style: italic;
+    }
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #3498db;
+      font-weight: 500;
+    }
+    .form-container {
+      background: #f8f9fa;
+      padding: 25px;
+      border-radius: 10px;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    form {
+      display: grid;
+      gap: 15px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+    label {
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #2c3e50;
+      font-size: 14px;
+    }
+    input, textarea {
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 15px;
+      transition: border 0.3s;
+    }
+    input:focus, textarea:focus {
+      border-color: #3498db;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(52,152,219,0.2);
+    }
+    textarea {
+      resize: vertical;
+    }
+    button.submit {
+      background: #2ecc71;
+      padding: 12px 24px;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      max-width: 200px;
+    }
+    button.submit:hover {
+      background: #27ae60;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    button.report {
+      background: #f39c12;
+      padding: 8px 16px;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.3s;
+    }
+    button.report:hover {
+      background: #d35400;
+      transform: translateY(-1px);
+    }
+    .error-message {
+      color: #e74c3c;
+      font-size: 14px;
+      margin-top: 5px;
+      display: none;
+    }
+    @media (max-width: 768px) {
+      .container {
+        padding: 15px;
+      }
+      .logout-btn {
+        position: static;
+        margin: 0 auto 15px;
+        display: block;
+        width: fit-content;
+      }
+      .search-container {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .filter-group {
+        width: 100%;
+      }
+      .filter-select {
+        flex: 1;
+      }
+      .profile-details {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="login.html" class="logout-btn" onclick="logout()">
+      <i class="fas fa-sign-out-alt"></i> Logout
+    </a>
+    
+    <div id="welcomeMessage" class="welcome-message" style="display: none;">
+      Welcome, <span id="staffName">Staff Member</span>!
+    </div>
+
+    <div class="profile-container">
+      <h3><i class="fas fa-user-circle"></i> My Profile</h3>
+      <div class="profile-details" id="profileDetails">
+        <div>
+          <label>Full Name</label>
+          <span id="profileName"></span>
+        </div>
+        <div>
+          <label>Email</label>
+          <span id="profileEmail"></span>
+        </div>
+        <div>
+          <label>Phone</label>
+          <span id="profilePhone"></span>
+        </div>
+        <div>
+          <label>Role</label>
+          <span id="profileRole"></span>
+        </div>
+      </div>
+      <button class="submit" onclick="showEditProfileForm()"><i class="fas fa-edit"></i> Edit Profile</button>
+      <div id="editProfileFormContainer" class="form-container" style="display: none;">
+        <form id="editProfileForm">
+          <div class="form-group">
+            <label for="editName">Full Name</label>
+            <input type="text" id="editName" required>
+            <span class="error-message" id="editNameError"></span>
+          </div>
+          <div class="form-group">
+            <label for="editEmail">Email</label>
+            <input type="email" id="editEmail" required>
+            <span class="error-message" id="editEmailError"></span>
+          </div>
+          <div class="form-group">
+            <label for="editPhone">Phone</label>
+            <input type="text" id="editPhone" required>
+            <span class="error-message" id="editPhoneError"></span>
+          </div>
+          <button class="submit" type="submit"><i class="fas fa-save"></i> Save Changes</button>
+        </form>
+      </div>
+    </div>
+
+    <h2><i class="fas fa-user"></i> My Attendance</h2>
+    <div class="search-container">
+      <input type="text" id="attendanceSearch" class="search-box" placeholder="Search by date (e.g., Jan 2025)...">
+      <div class="filter-group">
+        <span class="filter-label">Filter by Status:</span>
+        <select id="statusFilter" class="filter-select" onchange="filterAttendanceTable()">
+          <option value="">All Statuses</option>
+          <option value="Present">Present</option>
+          <option value="Absent">Absent</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Date Range:</span>
+        <input type="date" id="startDate" class="filter-select" onchange="filterAttendanceTable()">
+        <span>to</span>
+        <input type="date" id="endDate" class="filter-select" onchange="filterAttendanceTable()">
+      </div>
+    </div>
+    <div id="attendanceLoading" class="loading" style="display: none;">Loading attendance...</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="attendanceTableBody"></tbody>
+    </table>
+
+    <div id="reportFormContainer" class="form-container" style="display: none;">
+      <form id="reportMistakeForm">
+        <input type="hidden" id="attendanceId">
+        <div class="form-group">
+          <label for="mistakeDescription">Describe the Attendance Mistake</label>
+          <textarea id="mistakeDescription" placeholder="Explain the issue with this attendance record that needs to be reported to admin" required rows="4"></textarea>
+          <span class="error-message" id="mistakeDescriptionError"></span>
+        </div>
+        <button class="submit" type="submit"><i class="fas fa-exclamation-circle"></i> Submit Complaint to Admin</button>
+      </form>
+    </div>
+
+    <h2><i class="fas fa-exclamation-circle"></i> My Complaints</h2>
+    <div id="complaintsLoading" class="loading" style="display: none;">Loading complaints...</div>
+    <div class="search-container">
+      <input type="text" id="complaintsSearch" class="search-box" placeholder="Search by description...">
+      <div class="filter-group">
+        <span class="filter-label">Filter by Status:</span>
+        <select id="complaintsStatusFilter" class="filter-select" onchange="filterComplaintsTable()">
+          <option value="">All Statuses</option>
+          <option value="Pending">Pending</option>
+          <option value="Resolved">Resolved</option>
+          <option value="Dismissed">Dismissed</option>
+        </select>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Created At</th>
+         
+          <th>Attendance Status</th>
+          <th>Description</th>
+          <th>Status</th>
+       
+        </tr>
+      </thead>
+      <tbody id="complaintsTableBody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const attendanceTableBody = document.getElementById('attendanceTableBody');
+    const complaintsTableBody = document.getElementById('complaintsTableBody');
+    const reportFormContainer = document.getElementById('reportFormContainer');
+    const reportMistakeForm = document.getElementById('reportMistakeForm');
+
+    // Sanitize input
+    function sanitizeInput(input) {
+      const div = document.createElement('div');
+      div.textContent = input;
+      return div.innerHTML;
+    }
+
+    // Show loading state
+    function showLoading() {
+      document.getElementById('attendanceLoading').style.display = 'block';
+    }
+
+    function hideLoading() {
+      document.getElementById('attendanceLoading').style.display = 'none';
+    }
+
+    // Show error message
+    function showError(elementId, message) {
+      const errorElement = document.getElementById(elementId);
+      errorElement.textContent = message;
+      errorElement.style.display = 'block';
+    }
+
+    function clearErrors(formId) {
+      document.querySelectorAll(`#${formId} .error-message`).forEach(el => {
+        el.textContent = '';
+        el.style.display = 'none';
+      });
+    }
+
+    // Format date
+    function formatDate(dateString) {
+      const options = { year: 'numeric', month: 'short', day: 'numeric' };
+      return new Date(dateString).toLocaleDateString(undefined, options);
+    }
+
+    // Show edit profile form
+    function showEditProfileForm() {
+      const profileName = document.getElementById('profileName').textContent;
+      const profileEmail = document.getElementById('profileEmail').textContent;
+      const profilePhone = document.getElementById('profilePhone').textContent;
+      
+      document.getElementById('editName').value = profileName;
+      document.getElementById('editEmail').value = profileEmail;
+      document.getElementById('editPhone').value = profilePhone;
+      
+      clearErrors('editProfileForm');
+      document.getElementById('editProfileFormContainer').style.display = 'block';
+      document.getElementById('editProfileFormContainer').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Handle profile update submission
+    document.getElementById('editProfileForm').onsubmit = async (e) => {
+      e.preventDefault();
+      clearErrors('editProfileForm');
+      
+      const name = document.getElementById('editName').value.trim();
+      const email = document.getElementById('editEmail').value.trim();
+      const phone = document.getElementById('editPhone').value.trim();
+
+      if (!name || name.length < 2) {
+        showError('editNameError', 'Name must be at least 2 characters');
+        return;
+      }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showError('editEmailError', 'Please enter a valid email');
+        return;
+      }
+      if (!phone || !/^\+?\d{10,15}$/.test(phone)) {
+        showError('editPhoneError', 'Please enter a valid phone number (10-15 digits)');
+        return;
+      }
+
+      try {
+        const response = await fetch('http://localhost:5001/api/staff/me', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ name, email, phone })
+        });
+
+        if (!response.ok) throw new Error('Failed to update profile');
+        const data = await response.json();
+        alert(data.message);
+        
+        await loadProfile();
+        document.getElementById('editProfileFormContainer').style.display = 'none';
+      } catch (error) {
+        console.error('Error updating profile:', error);
+        alert('Failed to update profile');
+      }
+    };
+
+    // Logout function
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.href = 'login.html';
+    }
+
+    // Fetch current staff info
+    async function fetchCurrentStaff() {
+      try {
+        console.log('Fetching staff info with token:', token ? 'Token exists' : 'No token');
+        const response = await fetch('http://localhost:5001/api/staff/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        console.log('Staff API response status:', response.status);
+        if (!response.ok) throw new Error('Failed to fetch staff info');
+        const data = await response.json();
+        console.log('Staff API response data:', data);
+        return data;
+      } catch (error) {
+        console.error('Error fetching staff info:', error);
+        return null;
+      }
+    }
+
+    // Load profile details
+    async function loadProfile() {
+      console.log('Loading profile...');
+      const staff = await fetchCurrentStaff();
+      console.log('Staff data:', staff);
+      if (staff) {
+        document.getElementById('staffName').textContent = sanitizeInput(staff.name);
+        document.getElementById('welcomeMessage').style.display = 'block';
+        document.getElementById('profileName').textContent = sanitizeInput(staff.name);
+        document.getElementById('profileEmail').textContent = sanitizeInput(staff.email);
+        document.getElementById('profilePhone').textContent = sanitizeInput(staff.phone);
+        document.getElementById('profileRole').textContent = sanitizeInput(staff.role);
+      } else {
+        console.log('No staff data found');
+        document.getElementById('profileDetails').innerHTML = '<p class="no-data">Unable to load profile details.</p>';
+      }
+    }
+
+    // Load attendance
+    async function loadAttendance() {
+      showLoading();
+      try {
+        const staff = await fetchCurrentStaff();
+        if (!staff) throw new Error('Staff info not found');
+        const response = await fetch(`http://localhost:5001/api/attendance/staff/${staff.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Failed to fetch attendance');
+        const list = await response.json();
+        attendanceTableBody.innerHTML = '';
+
+        if (list.length === 0) {
+          attendanceTableBody.innerHTML = '<tr><td colspan="3" class="no-data">No attendance records found.</td></tr>';
+          return;
+        }
+
+        list.sort((a, b) => new Date(b.date) - new Date(a.date));
+        list.forEach(a => {
+          const statusClass = a.status === 'Present' ? 'status-present' : 'status-absent';
+          attendanceTableBody.innerHTML += `
+            <tr>
+              <td data-date="${a.date}">${formatDate(a.date)}</td>
+              <td class="${statusClass}">${sanitizeInput(a.status)}</td>
+              <td class="action-buttons">
+                <button class="report" onclick="showReportForm('${a.id}', '${a.date}', '${a.status}')"><i class="fas fa-exclamation-circle"></i> Report Mistake</button>
+              </td>
+            </tr>
+          `;
+        });
+      } catch (error) {
+        console.error('Error loading attendance:', error);
+        attendanceTableBody.innerHTML = '<tr><td colspan="3" class="no-data">Error loading attendance records.</td></tr>';
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // Show report form
+    function showReportForm(attendanceId, date, status) {
+      document.getElementById('attendanceId').value = attendanceId;
+      document.getElementById('mistakeDescription').value = '';
+      clearErrors('reportMistakeForm');
+      reportFormContainer.style.display = 'block';
+      reportFormContainer.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Handle report submission
+    
+reportMistakeForm.onsubmit = async (e) => {
+  e.preventDefault();
+  console.log("[reportMistakeForm] Form submission started");
+
+  clearErrors('reportMistakeForm');
+
+  const attendanceId = document.getElementById('attendanceId').value;
+  const description = document.getElementById('mistakeDescription').value.trim();
+
+  console.log("[reportMistakeForm] Collected input values:", {
+    attendanceId,
+    descriptionLength: description.length
+  });
+
+  if (!description || description.length < 10) {
+    console.warn("[reportMistakeForm] Validation failed: Description is too short or empty");
+    showError('mistakeDescriptionError', 'Please provide a description (minimum 10 characters)');
+    return;
+  }
+
+  try {
+    showLoading();
+    console.log("[reportMistakeForm] Sending POST request to API endpoint");
+
+
+    const payload = {
+      attendance_id: attendanceId,
+      description: sanitizeInput(description)
+    };
+    console.log("[reportMistakeForm] Request payload:", payload);
+
+    const response = await fetch('http://localhost:5001/api/comp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    console.log("[reportMistakeForm] Response status:", response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[reportMistakeForm] API returned an error:", errorText);
+      throw new Error(`Failed to submit attendance complaint: ${errorText}`);
+    }
+
+    console.log("[reportMistakeForm] API request successful, resetting form");
+
+    reportMistakeForm.reset();
+    document.getElementById('attendanceId').value = '';
+    reportFormContainer.style.display = 'none';
+
+    alert('Attendance complaint submitted successfully to admin');
+    console.log("[reportMistakeForm] Alert shown, refreshing complaints table");
+
+    await loadComplaints();
+    console.log("[reportMistakeForm] Complaints table refreshed");
+
+  } catch (error) {
+    console.error("[reportMistakeForm] Error submitting attendance complaint:", error);
+    alert('Failed to submit attendance complaint');
+  } finally {
+    hideLoading();
+    console.log("[reportMistakeForm] Form submission process finished");
+  }
+};
+
+    // Filter attendance table
+    function filterAttendanceTable() {
+      const searchTerm = document.getElementById('attendanceSearch').value.toLowerCase();
+      const statusFilter = document.getElementById('statusFilter').value;
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      const rows = attendanceTableBody.querySelectorAll('tr');
+
+      rows.forEach(row => {
+        if (row.classList.contains('no-data')) return;
+        const date = row.cells[0].textContent.toLowerCase();
+        const dateValue = new Date(row.cells[0].getAttribute('data-date'));
+        const status = row.cells[1].textContent;
+        const matchesSearch = date.includes(searchTerm);
+        const matchesStatus = !statusFilter || status === statusFilter;
+        const matchesDate = (!startDate || dateValue >= new Date(startDate)) && (!endDate || dateValue <= new Date(endDate));
+        row.style.display = (matchesSearch && matchesStatus && matchesDate) ? '' : 'none';
+      });
+    }
+
+    // Load complaints
+    async function loadComplaints() {
+      console.log("----------------function is called---------------------------- ");
+      document.getElementById('complaintsLoading').style.display = 'block';
+      try {
+        const response = await fetch('http://localhost:5001/api/staff/attendance/complaints/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+          
+        });
+        if (!response.ok) throw new Error('Failed to fetch complaints');
+        const complaints = await response.json();
+         console.log("-------------------------------------------- ",complaints);
+        complaintsTableBody.innerHTML = '';
+
+        if (complaints.length === 0) {
+          complaintsTableBody.innerHTML = '<tr><td colspan="6" class="no-data">No complaints found.</td></tr>';
+           
+          return;
+        }
+      
+        complaints.forEach(complaint => {
+          const statusClass = complaint.status === 'Pending' ? 'status-pending' : 
+                            complaint.status === 'Resolved' ? 'status-resolved' : 'status-dismissed';
+          complaintsTableBody.innerHTML += `
+            <tr>
+              <td>${formatDate(complaint.created_at)}</td>
+          
+              <td>${complaint.attendance_status ? sanitizeInput(complaint.attendance_status) : 'N/A'}</td>
+              <td>${sanitizeInput(complaint.description)}</td>
+              <td class="${statusClass}">${sanitizeInput(complaint.status)}</td>
+              
+            </tr>
+          `;
+        });
+      } catch (error) {
+        console.error('Error loading complaints:', error);
+        complaintsTableBody.innerHTML = '<tr><td colspan="6" class="no-data">Error loading complaints.</td></tr>';
+      } finally {
+        document.getElementById('complaintsLoading').style.display = 'none';
+      }
+    }
+
+    // Filter complaints table
+    function filterComplaintsTable() {
+      const searchTerm = document.getElementById('complaintsSearch').value.toLowerCase();
+      const statusFilter = document.getElementById('complaintsStatusFilter').value;
+      const rows = complaintsTableBody.querySelectorAll('tr');
+
+      rows.forEach(row => {
+        if (row.classList.contains('no-data')) return;
+        const description = row.cells[3].textContent.toLowerCase();
+        const status = row.cells[4].textContent;
+        const matchesSearch = description.includes(searchTerm);
+        const matchesStatus = !statusFilter || status === statusFilter;
+        row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
+      });
+    }
+
+    // Add event listeners for immediate filtering
+    document.getElementById('attendanceSearch').addEventListener('input', filterAttendanceTable);
+    document.getElementById('statusFilter').addEventListener('change', filterAttendanceTable);
+    document.getElementById('startDate').addEventListener('change', filterAttendanceTable);
+    document.getElementById('endDate').addEventListener('change', filterAttendanceTable);
+    document.getElementById('complaintsSearch')?.addEventListener('input', filterComplaintsTable);
+    document.getElementById('complaintsStatusFilter')?.addEventListener('change', filterComplaintsTable);
+
+    // Initialize page
+    window.onload = async () => {
+      if (!token) {
+        
+        window.location.href = 'login.html';
+        return;
+      }
+
+      try {
+      
+        const response = await fetch('http://localhost:5001/api/auth/validate', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        console.log('Validation response status:', response.status, 'Response:', await response.text());
+
+        if (!response.ok) {
+          throw new Error(`Token validation failed with status ${response.status}`);
+        }
+
+          console.log("call initiated started");
+        await Promise.all([loadProfile(), loadAttendance(), loadComplaints()]);
+        console.log("call initiated ended ");
+      } catch (error) {
+        
+        alert('Session expired or invalid. Please log in again.');
+        localStorage.removeItem('token');
+        window.location.href = 'login.html';
+      }
+    };
+  </script>
+</body>
+</html>

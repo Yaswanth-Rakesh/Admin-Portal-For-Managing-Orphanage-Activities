@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Smart Orphanage - Donor Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f4f4f4;
+    }
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+    .back-to-dashboard {
+      position: absolute;
+      top: 30px;
+      right: 30px;
+      background: #6c757d;
+      color: #fff;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      text-decoration: none;
+    }
+    .back-to-dashboard:hover {
+      opacity: 0.9;
+    }
+    .welcome-message {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+      font-size: 24px;
+      font-weight: 600;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    .welcome-message span {
+      color: #ffd700;
+      font-weight: 700;
+    }
+    .welcome-message small {
+      color: #e8f4fd;
+      font-size: 16px;
+      font-weight: 400;
+      margin-top: 5px;
+      display: block;
+    }
+    .profile-container {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .profile-container h3 {
+      color: #333;
+      margin-top: 0;
+      font-size: 22px;
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 8px;
+    }
+    .profile-details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+    .profile-details div {
+      display: flex;
+      flex-direction: column;
+    }
+    .profile-details label {
+      font-weight: bold;
+      color: #333;
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
+    .profile-details input {
+      font-size: 15px;
+      color: #333;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .profile-details button {
+      background: #28a745;
+      color: #fff;
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+    .profile-details button:hover {
+      opacity: 0.9;
+    }
+    h2 {
+      color: #333;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .export-buttons {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 10px;
+    }
+    .export-buttons button {
+      background: #007bff;
+      color: #fff;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .export-buttons button:hover {
+      opacity: 0.9;
+    }
+    .filter-section {
+      margin-bottom: 20px;
+    }
+    .filter-controls {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .filter-control {
+      flex: 1;
+      min-width: 200px;
+    }
+    .filter-control label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    .filter-control input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: left;
+    }
+    th {
+      background: #f8f9fa;
+      font-weight: bold;
+    }
+    .no-data {
+      text-align: center;
+      color: #777;
+      padding: 20px;
+    }
+    .complaint-form {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #333;
+    }
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    .form-group textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    .submit-btn {
+      background: #28a745;
+      color: #fff;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .submit-btn:hover {
+      opacity: 0.9;
+    }
+    .status-pending {
+      color: #ffc107;
+      font-weight: bold;
+    }
+    .status-resolved {
+      color: #28a745;
+      font-weight: bold;
+    }
+    .status-dismissed {
+      color: #dc3545;
+      font-weight: bold;
+    }
+    @media (max-width: 768px) {
+      .container {
+        padding: 15px;
+      }
+      .back-to-dashboard {
+        position: static;
+        margin: 0 auto 15px;
+        display: block;
+        width: fit-content;
+      }
+      .profile-details {
+        grid-template-columns: 1fr;
+      }
+      .filter-controls {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <a href="login.html" class="back-to-dashboard"><i class="fas fa-arrow-left"></i> Back to Login</a>
+      
+    </div>
+
+    <div id="welcomeMessage" class="welcome-message" style="display: none;">
+      <i class="fas fa-heart"></i> Welcome back, <span id="donorName"></span>! <i class="fas fa-heart"></i>
+      <br><small>Thank you for your generous contributions to our cause</small>
+    </div>
+
+    <div class="profile-container">
+      <h3><i class="fas fa-user-circle"></i> My Profile</h3>
+      <div class="profile-details" id="profileDetails">
+        <div>
+          <label>Name</label>
+          <input id="profileName" type="text" readonly />
+        </div>
+        <div>
+          <label>Email</label>
+          <input id="profileEmail" type="email" readonly />
+        </div>
+        <div>
+          <label>Phone</label>
+          <input id="profilePhone" type="text" readonly />
+        </div>
+        <div>
+          <label>Address</label>
+          <input id="profileAddress" type="text" readonly />
+        </div>
+        <button onclick="toggleEditProfile()">Edit Profile</button>
+      </div>
+    </div>
+
+    <h2><i class="fas fa-donate"></i> My Donations</h2>
+
+    <div class="export-buttons">
+      <button onclick="downloadDonationsPDF()"><i class="fas fa-file-pdf"></i> Export Donations to PDF</button>
+      <button onclick="downloadDonationsExcel()"><i class="fas fa-file-excel"></i> Export Donations to Excel</button>
+    </div>
+
+    <div class="filter-section">
+      <h4><i class="fas fa-filter"></i> Filter Donations</h4>
+      <div class="filter-controls">
+        <div class="filter-control">
+          <label for="filterDonationYear">Donation Year</label>
+          <input type="number" id="filterDonationYear" placeholder="e.g., 2025" min="1900" max="2100" oninput="applyDonationFilters()">
+        </div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Amount</th>
+          <th>Date</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody id="donationTableBody"></tbody>
+    </table>
+
+    
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <script>
+    const { jsPDF } = window.jspdf;
+    const token = localStorage.getItem('token');
+    let isEditingProfile = false;
+
+    // Input sanitization
+    function sanitizeInput(input) {
+      if (!input) return '';
+      const div = document.createElement('div');
+      div.textContent = input;
+      return div.innerHTML;
+    }
+
+    // Format date
+    function formatDate(dateString) {
+      if (!dateString) return 'N/A';
+      try {
+        const options = { year: 'numeric', month: 'short', day: 'numeric' };
+        return new Date(dateString).toLocaleDateString(undefined, options);
+      } catch (e) {
+        return 'Invalid Date';
+      }
+    }
+
+    // Handle unauthorized errors
+    
+
+    // Fetch current donor info
+    async function fetchCurrentDonor() {
+      try {
+        console.log('Fetching donor info with token:', token ? token.substring(0, 20) + '...' : 'No token');
+        const response = await fetch('http://localhost:5001/api/donors/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        console.log('Donor info response status:', response.status);
+        
+        if (response.status === 401) {
+          handleUnauthorized();
+          return null;
+        }
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Response error:', errorText);
+          throw new Error(`Failed to fetch donor info: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Donor data received:', data);
+        return data;
+      } catch (error) {
+        console.error('Error fetching donor info:', error);
+        return null;
+      }
+    }
+
+    // Toggle profile edit mode
+    function toggleEditProfile() {
+      isEditingProfile = !isEditingProfile;
+      const inputs = document.querySelectorAll('#profileDetails input');
+      const button = document.querySelector('#profileDetails button');
+      inputs.forEach(input => input.readOnly = !isEditingProfile);
+      button.textContent = isEditingProfile ? 'Save Profile' : 'Edit Profile';
+      if (isEditingProfile) {
+        button.onclick = saveProfile;
+      } else {
+        button.onclick = toggleEditProfile;
+      }
+    }
+
+    // Save profile updates
+    async function saveProfile() {
+      const name = document.getElementById('profileName').value.trim();
+      const email = document.getElementById('profileEmail').value.trim();
+      const phone = document.getElementById('profilePhone').value.trim();
+      const address = document.getElementById('profileAddress').value.trim();
+      const token = localStorage.getItem('token');
+
+      if (!name || !email || !phone) {
+        alert('Name, email, and phone are required.');
+        return;
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        alert('Please enter a valid email address.');
+        return;
+      }
+
+      try {
+        const response = await fetch('http://localhost:5001/api/donors/me', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ name, email, phone, address })
+        });
+
+        if (response.status === 401) {
+          handleUnauthorized();
+          return;
+        }
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to update profile');
+        }
+
+        alert('Profile updated successfully!');
+        toggleEditProfile();
+        await loadProfile();
+      } catch (error) {
+        console.error('Error updating profile:', error);
+        alert('Failed to update profile: ' + error.message);
+      }
+    }
+
+    // Load profile details
+    async function loadProfile() {
+      console.log('Loading profile...');
+      const donor = await fetchCurrentDonor();
+      console.log('Donor data:', donor);
+      
+      if (donor) {
+        console.log('Setting donor name:', donor.name);
+        document.getElementById('donorName').textContent = sanitizeInput(donor.name);
+        document.getElementById('welcomeMessage').style.display = 'block';
+        console.log('Welcome message should now be visible');
+        
+        document.getElementById('profileName').value = sanitizeInput(donor.name);
+        document.getElementById('profileEmail').value = sanitizeInput(donor.email);
+        document.getElementById('profilePhone').value = sanitizeInput(donor.phone || '');
+        document.getElementById('profileAddress').value = sanitizeInput(donor.address || '');
+      } else {
+        console.log('No donor data received');
+        document.getElementById('profileDetails').innerHTML = '<p class="no-data">Unable to load profile details.</p>';
+      }
+    }
+
+    // Fetch donor's donations
+    async function fetchDonorDonations() {
+      try {
+        const response = await fetch('http://localhost:5001/api/donations/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        console.log('Donations response status:', response.status);
+        if (response.status === 401) {
+          handleUnauthorized();
+          return [];
+        }
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Response error:', errorText);
+          throw new Error('Failed to fetch donations');
+        }
+        const data = await response.json();
+        console.log('Fetched donations:', data);
+        return data;
+      } catch (error) {
+        console.error('Error fetching donations:', error);
+        return [];
+      }
+    }
+
+    // Load donations into table
+    async function loadDonations() {
+      const donations = await fetchDonorDonations();
+      const donationTableBody = document.getElementById('donationTableBody');
+      donationTableBody.innerHTML = '';
+
+      if (donations.length === 0) {
+        donationTableBody.innerHTML = '<tr><td colspan="3" class="no-data">No donations found.</td></tr>';
+        return;
+      }
+
+      donations.forEach(donation => {
+        donationTableBody.innerHTML += `
+          <tr>
+            <td>${sanitizeInput(donation.amount)}</td>
+            <td>${formatDate(donation.donation_date)}</td>
+            <td>${sanitizeInput(donation.purpose || '')}</td>
+          </tr>
+        `;
+      });
+    }
+
+    // Apply donation filters
+    function applyDonationFilters() {
+      const yearFilter = document.getElementById('filterDonationYear').value;
+      const rows = document.getElementById('donationTableBody').querySelectorAll('tr');
+
+      rows.forEach(row => {
+        if (row.classList.contains('no-data')) return;
+        const donationDate = row.cells[1].textContent;
+        const donationYear = donationDate && donationDate !== 'N/A' ? new Date(donationDate).getFullYear().toString() : '';
+        const matchesYear = !yearFilter || donationYear === yearFilter;
+        row.style.display = matchesYear ? '' : 'none';
+      });
+    }
+
+    // Export donations to PDF
+    async function downloadDonationsPDF() {
+      const donations = await fetchDonorDonations();
+      const donor = await fetchCurrentDonor();
+      const doc = new jsPDF();
+      let yOffset = 10;
+
+      doc.setFontSize(16);
+      doc.text(`Donation History for ${donor ? donor.name : 'Donor'}`, 10, yOffset);
+      yOffset += 10;
+
+      donations.forEach((donation, index) => {
+        if (index > 0 && yOffset > 280) {
+          doc.addPage();
+          yOffset = 10;
+        }
+        doc.setFontSize(12);
+        doc.text(`Amount: ${donation.amount}`, 10, yOffset);
+        yOffset += 10;
+        doc.text(`Date: ${formatDate(donation.donation_date)}`, 10, yOffset);
+        yOffset += 10;
+        doc.text(`Purpose: ${donation.purpose || 'N/A'}`, 10, yOffset);
+        yOffset += 15;
+      });
+
+      doc.save('my_donations.pdf');
+    }
+
+    // Export donations to Excel
+    async function downloadDonationsExcel() {
+      const donations = await fetchDonorDonations();
+      const data = donations.map(donation => ({
+        Amount: donation.amount,
+        Date: formatDate(donation.donation_date),
+        Purpose: donation.purpose || ''
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'My Donations');
+      XLSX.writeFile(wb, 'my_donations.xlsx');
+    }
+
+   
+    // Export complaints to PDF
+    async function downloadComplaintsPDF() {
+      const complaints = await fetchDonorComplaints();
+      const donor = await fetchCurrentDonor();
+      const doc = new jsPDF();
+      let yOffset = 10;
+
+      doc.setFontSize(16);
+      doc.text(`Complaints History for ${donor ? donor.name : 'Donor'}`, 10, yOffset);
+      yOffset += 10;
+
+      complaints.forEach((complaint, index) => {
+        if (index > 0 && yOffset > 280) {
+          doc.addPage();
+          yOffset = 10;
+        }
+        doc.setFontSize(12);
+        doc.text(`Donation: ${complaint.amount} (${formatDate(complaint.donation_date)})`, 10, yOffset);
+        yOffset += 10;
+        doc.text(`Complaint: ${complaint.description}`, 10, yOffset);
+        yOffset += 10;
+        doc.text(`Status: ${complaint.status}`, 10, yOffset);
+        yOffset += 10;
+        doc.text(`Submitted: ${formatDate(complaint.created_at)}`, 10, yOffset);
+        yOffset += 15;
+      });
+
+      doc.save('my_complaints.pdf');
+    }
+
+    // Export complaints to Excel
+    async function downloadComplaintsExcel() {
+      const complaints = await fetchDonorComplaints();
+      const data = complaints.map(complaint => ({
+        'Donation Amount': complaint.amount,
+        'Donation Date': formatDate(complaint.donation_date),
+        'Complaint Description': complaint.description,
+        'Status': complaint.status,
+        'Submitted On': formatDate(complaint.created_at)
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'My Complaints');
+      XLSX.writeFile(wb, 'my_complaints.xlsx');
+    }
+
+    // Initialize page
+    window.onload = async () => {
+      console.log('Page loading...');
+      console.log('Token exists:', !!token);
+      
+      if (!token) {
+        console.log('No token, redirecting to login');
+        handleUnauthorized();
+        return;
+      }
+
+      try {
+        console.log('Validating token...');
+        const response = await fetch('http://localhost:5001/api/auth/validate', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        console.log('Token validation response:', response.status);
+        
+        if (response.status === 401) {
+          handleUnauthorized();
+          return;
+        }
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Token validation error:', errorText);
+          throw new Error('Invalid token');
+        }
+        
+        console.log('Token valid, loading data...');
+        await Promise.all([loadProfile(), loadDonations(), loadComplaints(), populateDonationDropdown()]);
+        console.log('All data loaded successfully');
+        
+        // Initialize Select2 for complaint donation dropdown
+        $('#complaintDonationId').select2();
+      } catch (error) {
+        console.error('Token validation failed:', error);
+        handleUnauthorized();
+      }
+    };
+  </script>
+</body>
+</html>

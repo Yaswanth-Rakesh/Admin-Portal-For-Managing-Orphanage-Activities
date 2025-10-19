@@ -1,0 +1,172 @@
+const express = require("express");
+const mysql = require("mysql2");
+const bcrypt = require("bcryptjs");
+const dotenv = require("dotenv");
+const cors = require("cors");
+const path = require("path");
+const jwt = require("jsonwebtoken");
+
+dotenv.config();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Serve static files from the "public" folder (login.html, register.html, etc.)
+app.use(express.static(path.join(__dirname, "public")));
+
+// Default route: Serve login.html at "/"
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+
+// MySQL connection
+const db = mysql.createConnection({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+});
+
+// Connect to MySQL
+db.connect((err) => {
+  if (err) {
+    console.error("❌ DB connection failed:", err);
+  } else {
+    console.log("✅ MySQL connected!");
+  }
+});
+
+// Register endpoint
+app.post("/register", async (req, res) => {
+  const { name, email, password } = req.body;
+
+  // Validate inputs
+  if (!name || !email || !password) {
+    return res.status(400).json({ message: "All fields are required." });
+  }
+
+  // Hash password
+  const hashedPassword = await bcrypt.hash(password, 10);
+  console.log("Hashed password:", hashedPassword); // Debug line
+
+  // Insert user into DB
+  const query = "INSERT INTO users (name, email, password) VALUES (?, ?, ?)";
+  db.query(query, [name, email, hashedPassword], (err, result) => {
+    if (err) {
+      if (err.code === "ER_DUP_ENTRY") {
+        return res.status(400).json({ message: "Email already exists." });
+      }
+      return res.status(500).json({ message: "Database error", error: err });
+    }
+    res.status(201).json({ message: "User registered successfully!" });
+  });
+});
+
+// Login endpoint
+app.post("/api/admin/login", (req, res) => {
+  const { email, password } = req.body;
+
+  // Check if fields are empty
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password required." });
+  }
+
+  // Find user
+  const query = "SELECT * FROM users WHERE email = ?";
+  db.query(query, [email], async (err, results) => {
+    if (err) {
+      console.error("Database error:", err);
+      return res.status(500).json({ message: "Database error", err });
+    }
+
+    if (results.length === 0) {
+      console.log("No user found for email:", email);
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const user = results[0];
+    console.log("User found:", user.email, "Stored hashed password:", user.password);
+
+    // Compare password
+    const match = await bcrypt.compare(password, user.password);
+    console.log("Password match:", match);
+
+    if (!match) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // Generate JWT
+    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET || "SECRET_KEY", {
+      expiresIn: "1h",
+    });
+
+    return res.status(200).json({ message: "Login successful", token });
+  });
+});
+
+// Start server
+const PORT = process.env.PORT || 5001;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+});
+
+
+
+app.post("/api/donations", verifyToken, (req, res) => {
+  const { donor_id, amount, donation_date, purpose } = req.body;
+  if (!donor_id || !amount || !donation_date) {
+    return res.status(400).json({ message: "Required fields missing" });
+  }
+
+  const id = uuidv4();
+  const query = "INSERT INTO donations (id, donor_id, amount, donation_date, purpose) VALUES (?, ?, ?, ?, ?)";
+  db.query(query, [id, donor_id, amount, donation_date, purpose || null], (err) => {
+    if (err) return res.status(500).json({ message: "Database error", error: err });
+    res.status(201).json({ message: "Donation added", id });
+  });
+});
+
+
+//children endpoint
+app.get("/api/children", verifyToken, (req, res) => {
+  db.query("SELECT * FROM children", (err, results) => {
+    if (err) return res.status(500).json({ message: "Database error", error: err });
+    res.json(results);
+  });
+});
+
+app.post("/api/children", verifyToken, (req, res) => {
+  const { name, dob, gender, admission_date, notes } = req.body;
+  if (!name || !dob || !gender || !admission_date) {
+    return res.status(400).json({ message: "Required fields missing" });
+  }
+
+  const id = uuidv4();
+  const query = "INSERT INTO children (id, name, dob, gender, admission_date, notes) VALUES (?, ?, ?, ?, ?, ?)";
+  db.query(query, [id, name, dob, gender, admission_date, notes || null], (err) => {
+    if (err) return res.status(500).json({ message: "Database error", error: err });
+    res.status(201).json({ message: "Child added", id });
+  });
+});
+
+app.put("/api/children/:id", verifyToken, (req, res) => {
+  const { name, dob, gender, admission_date, notes } = req.body;
+  const { id } = req.params;
+  const query = "UPDATE children SET name = ?, dob = ?, gender = ?, admission_date = ?, notes = ? WHERE id = ?";
+  db.query(query, [name, dob, gender, admission_date, notes || null, id], (err) => {
+    if (err) return res.status(500).json({ message: "Database error", error: err });
+    res.json({ message: "Child updated" });
+  });
+});
+
+app.delete("/api/children/:id", verifyToken, (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM children WHERE id = ?", [id], (err) => {
+    if (err) return res.status(500).json({ message: "Database error", error: err });
+    db.query("DELETE FROM medical_records WHERE child_id = ?", [id]);
+    db.query("DELETE FROM education_records WHERE child_id = ?", [id]);
+    db.query("DELETE FROM sponsor_records WHERE child_id = ?", [id]);
+    res.json({ message: "Child deleted" });
+  });
+});

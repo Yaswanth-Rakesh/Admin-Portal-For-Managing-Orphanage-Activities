@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Smart Orphanage - Donor Management</title>
+  <!-- Dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.0/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f4;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 0 20px;
+    }
+    .back-to-dashboard {
+      margin-bottom: 20px;
+    }
+    h2 {
+      color: #333;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .dashboard-counts {
+      background: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+    .dashboard-counts p {
+      margin: 5px 0;
+    }
+    .form-container {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    .form-group textarea {
+      height: 100px;
+      resize: vertical;
+    }
+    .action-buttons {
+      display: flex;
+      gap: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    button[type="submit"] {
+      background-color: #28a745;
+      color: #fff;
+    }
+    button.secondary {
+      background-color: #6c757d;
+      color: #fff;
+    }
+    button:hover {
+      opacity: 0.9;
+    }
+    .tab-container {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .tab-buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .tab-button {
+      padding: 10px 20px;
+      border: none;
+      background: #e9ecef;
+      cursor: pointer;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .tab-button.active {
+      background: #007bff;
+      color: #fff;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .export-buttons {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 10px;
+    }
+    .export-buttons button {
+      background: #007bff;
+      color: #fff;
+    }
+    .filter-section {
+      margin-bottom: 20px;
+    }
+    .filter-controls {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .filter-control {
+      flex: 1;
+      min-width: 200px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: left;
+    }
+    th {
+      background: #f8f9fa;
+      font-weight: bold;
+    }
+    .action-buttons button {
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+    .action-buttons .edit {
+      background: #ffc107;
+      color: #fff;
+    }
+    .action-buttons .delete {
+      background: #dc3545;
+      color: #fff;
+    }
+    .action-buttons .resolve {
+      background: #28a745;
+      color: #fff;
+    }
+    .action-buttons .dismiss {
+      background: #6c757d;
+      color: #fff;
+    }
+    .no-data {
+      text-align: center;
+      color: #777;
+    }
+    .status-pending {
+      color: #ffc107;
+      font-weight: bold;
+    }
+    .status-resolved {
+      color: #28a745;
+      font-weight: bold;
+    }
+    .status-dismissed {
+      color: #6c757d;
+      font-weight: bold;
+    }
+    #errorMessage {
+      display: none;
+      color: red;
+      margin-bottom: 10px;
+      text-align: center;
+      background: #ffe6e6;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    /* Select2 Custom Styles */
+    .select2-container--default .select2-selection--single {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 6px;
+      height: 36px;
+      font-size: 14px;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+      line-height: 24px;
+      color: #333;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+      height: 36px;
+    }
+    .select2-container--default .select2-selection--single:focus {
+      border-color: #007bff;
+      box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+      outline: none;
+    }
+    .select2-container {
+      width: 100% !important;
+    }
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .container {
+        padding: 0 10px;
+      }
+      .tab-buttons {
+        flex-direction: column;
+      }
+      .filter-controls {
+        flex-direction: column;
+      }
+      table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+      .form-group {
+        margin-bottom: 10px;
+      }
+      .action-buttons {
+        flex-direction: column;
+        gap: 5px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="errorMessage"></div>
+    <div class="back-to-dashboard">
+      <button onclick="window.location.href='dashboard.html'" class="secondary">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+      </button>
+    </div>
+
+    <h2><i class="fas fa-hand-holding-usd"></i> Smart Orphanage - Donor Management</h2>
+
+    
+
+    <div class="tab-container">
+      <div class="tab-buttons">
+        <button class="tab-button active" data-tab="donors"><i class="fas fa-users"></i> Donors</button>
+        <button class="tab-button" data-tab="donations"><i class="fas fa-donate"></i> Donations</button>
+        
+      </div>
+
+      <div id="donors" class="tab-content active">
+        <div class="form-container">
+          <form id="donorForm">
+            <input type="hidden" id="donorId">
+            <div class="form-group">
+              <label for="donorName">Name</label>
+              <input type="text" id="donorName" placeholder="Enter donor's full name" required>
+            </div>
+            <div class="form-group">
+              <label for="donorEmail">Email</label>
+              <input type="email" id="donorEmail" placeholder="Enter donor's email" required>
+            </div>
+            <div class="form-group">
+              <label for="donorPhone">Phone</label>
+              <input type="text" id="donorPhone" placeholder="Enter donor's phone">
+            </div>
+            <div class="form-group">
+              <label for="donorAddress">Address</label>
+              <textarea id="donorAddress" placeholder="Enter donor's address"></textarea>
+            </div>
+            <div class="action-buttons">
+              <button type="submit"><i class="fas fa-save"></i> Save Donor</button>
+              <button type="button" onclick="clearDonorForm()" class="secondary"><i class="fas fa-times"></i> Clear</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="export-buttons">
+          <button onclick="downloadDonorsPDF()"><i class="fas fa-file-pdf"></i> Export Donors to PDF</button>
+          <button onclick="downloadDonorsExcel()"><i class="fas fa-file-excel"></i> Export Donors to Excel</button>
+        </div>
+
+        <div class="filter-section">
+          <h4><i class="fas fa-filter"></i> Filter Donors</h4>
+          <div class="filter-controls">
+            <div class="filter-control">
+              <label for="filterDonorName">Name</label>
+              <input type="text" id="filterDonorName" placeholder="Filter by name" oninput="applyDonorFilters()">
+            </div>
+            <div class="filter-control">
+              <label for="filterDonorEmail">Email</label>
+              <input type="text" id="filterDonorEmail" placeholder="Filter by email" oninput="applyDonorFilters()">
+            </div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Address</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="donorTableBody"></tbody>
+        </table>
+      </div>
+
+      <div id="donations" class="tab-content">
+        <div class="form-container">
+          <form id="donationForm">
+            <input type="hidden" id="donationId">
+            <div class="form-group">
+              <label for="donationDonor">Donor</label>
+              <select id="donationDonor" class="select2" required>
+                <option value="">Select donor</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="donationAmount">Amount</label>
+              <input type="number" id="donationAmount" placeholder="Enter donation amount" required min="0" step="0.01">
+            </div>
+            <div class="form-group">
+              <label for="donationDate">Donation Date</label>
+              <input type="date" id="donationDate" required>
+            </div>
+            <div class="form-group">
+              <label for="donationPurpose">Purpose</label>
+              <input type="text" id="donationPurpose" placeholder="Enter donation purpose">
+            </div>
+            <div class="action-buttons">
+              <button type="submit"><i class="fas fa-save"></i> Save Donation</button>
+              <button type="button" onclick="clearDonationForm()" class="secondary"><i class="fas fa-times"></i> Clear</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="export-buttons">
+          <button onclick="downloadDonationsPDF()"><i class="fas fa-file-pdf"></i> Export Recent Donations to PDF</button>
+          <button onclick="downloadDonationsExcel()"><i class="fas fa-file-excel"></i> Export Recent Donations to Excel</button>
+        </div>
+
+        <div class="filter-section">
+          <h4><i class="fas fa-filter"></i> Filter Donations</h4>
+          <div class="filter-controls">
+            <div class="filter-control">
+              <label for="filterDonationDonor">Donor</label>
+              <select id="filterDonationDonor" class="select2">
+                <option value="">All Donors</option>
+              </select>
+            </div>
+            <div class="filter-control">
+              <label for="filterDonationYear">Donation Year</label>
+              <input type="number" id="filterDonationYear" placeholder="e.g., 2025" min="1900" max="2100" oninput="applyDonationFilters()">
+            </div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Donor</th>
+              <th>Amount</th>
+              <th>Date</th>
+              <th>Purpose</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="donationTableBody"></tbody>
+        </table>
+      </div>
+
+      <div id="complaints" class="tab-content">
+        <div class="export-buttons">
+          <button onclick="downloadComplaintsPDF()"><i class="fas fa-file-pdf"></i> Export Complaints to PDF</button>
+          <button onclick="downloadComplaintsExcel()"><i class="fas fa-file-excel"></i> Export Complaints to Excel</button>
+        </div>
+
+        <div class="filter-section">
+          <h4><i class="fas fa-filter"></i> Filter Complaints</h4>
+          <div class="filter-controls">
+            <div class="filter-control">
+              <label for="filterComplaintDonor">Donor</label>
+              <select id="filterComplaintDonor" class="select2">
+                <option value="">All Donors</option>
+              </select>
+            </div>
+            <div class="filter-control">
+              <label for="filterComplaintStatus">Status</label>
+              <select id="filterComplaintStatus" class="select2" onchange="applyComplaintFilters()">
+                <option value="">All Statuses</option>
+                <option value="Pending">Pending</option>
+                <option value="Resolved">Resolved</option>
+                <option value="Dismissed">Dismissed</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Donor</th>
+              <th>Donation Amount</th>
+              <th>Donation Date</th>
+              <th>Donation Purpose</th>
+              <th>Complaint Description</th>
+              <th>Status</th>
+              <th>Submitted On</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="complaintTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { jsPDF } = window.jspdf;
+    const API_BASE_URL = 'http://localhost:5001'; // Update to your backend URL if different
+    const token = localStorage.getItem('token');
+    let editingDonorId = null;
+    let editingDonationId = null;
+
+    // Show error message
+    function showError(message) {
+      const errorDiv = document.getElementById('errorMessage');
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+      setTimeout(() => { errorDiv.style.display = 'none'; }, 5000);
+    }
+
+    // Input sanitization with DOMPurify
+    function sanitizeInput(input) {
+      return DOMPurify.sanitize(input || '');
+    }
+
+    // Format date
+    function formatDate(dateString) {
+      if (!dateString || isNaN(new Date(dateString))) return 'N/A';
+      const options = { year: 'numeric', month: 'short', day: 'numeric' };
+      return new Date(dateString).toLocaleDateString(undefined, options);
+    }
+
+    // Initialize Select2
+    $(document).ready(function() {
+      $('#donationDonor, #filterDonationDonor, #filterComplaintDonor, #filterComplaintStatus').select2({
+        placeholder: "Select an option",
+        allowClear: true,
+        width: '100%',
+        dropdownCssClass: 'select2-dropdown'
+      });
+      // Initialize page
+      if (!token) {
+        showError('No authentication token found. Please log in.');
+        window.location.href = 'login.html';
+      } else {
+        console.log('Initializing page with token:', token);
+        loadDonors();
+        updateDashboardCounts();
+      }
+    });
+
+    // Tab switching
+    document.querySelectorAll('.tab-button').forEach(button => {
+      button.addEventListener('click', () => {
+        console.log('Switching to tab:', button.dataset.tab);
+        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        button.classList.add('active');
+        document.getElementById(button.dataset.tab).classList.add('active');
+        if (button.dataset.tab === 'donations') {
+          loadRecentDonations();
+        } else if (button.dataset.tab === 'complaints') {
+          loadComplaints();
+        } else {
+          loadDonors();
+        }
+      });
+    });
+   
+
+    // Fetch and update dashboard counts
+    
+
+    // Fetch donors
+    async function fetchDonors() {
+  try {
+    console.log('Fetching donors from:', `${API_BASE_URL}/api/donors`);
+    const response = await fetch(`${API_BASE_URL}/api/donors`, {
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    if (response.status === 401) {
+      showError('Session expired. Please log in again.');
+      window.location.href = 'login.html';
+      return [];
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch donors: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    console.log('Donors fetched:', data);
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('Error fetching donors:', error);
+    showError('Error fetching donors: ' + error.message);
+    return [];
+  }
+}
+    // Fetch recent donations
+    async function fetchRecentDonations() {
+      try {
+        console.log('Fetching recent donations from:', `${API_BASE_URL}/api/donations/recent`);
+        const response = await fetch(`${API_BASE_URL}/api/donations/recent`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.status === 401) {
+          showError('Session expired. Please log in again.');
+          window.location.href = 'login.html';
+          return [];
+        }
+        if (!response.ok) throw new Error(`Failed to fetch recent donations: ${response.statusText}`);
+        const data = await response.json();
+        console.log('Recent donations fetched:', data);
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error('Error fetching recent donations:', error);
+        showError('Error fetching recent donations: ' + error.message);
+        return [];
+      }
+    }
+    // Fetch complaints
+    async function fetchComplaints() {
+  try {
+    console.log('Fetching complaints from:', `${API_BASE_URL}/api/donations/complaints/me`);
+    const response = await fetch(`${API_BASE_URL}/api/donations/complaints/me`, {
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    if (response.status === 401) {
+      showError('Session expired. Please log in again.');
+      window.location.href = 'login.html';
+      return [];
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch complaints: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    console.log('Complaints fetched:', data);
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('Error fetching complaints:', error);
+    showError('Error fetching complaints: ' + error.message);
+    return [];
+  }
+}
+
+    // Load donors into table and select options
+    async function loadDonors() {
+      try {
+        const donors = await fetchDonors();
+        const donorTableBody = document.getElementById('donorTableBody');
+        const donationDonorSelect = $('#donationDonor');
+        const filterDonationDonorSelect = $('#filterDonationDonor');
+        const filterComplaintDonorSelect = $('#filterComplaintDonor');
+
+        console.log('Loading donors:', donors);
+        donorTableBody.innerHTML = '';
+        donationDonorSelect.empty().append('<option value="">Select donor</option>');
+        filterDonationDonorSelect.empty().append('<option value="">All Donors</option>');
+        filterComplaintDonorSelect.empty().append('<option value="">All Donors</option>');
+
+        if (!donors || donors.length === 0) {
+          donorTableBody.innerHTML = '<tr><td colspan="5" class="no-data">No donors found.</td></tr>';
+          return;
+        }
+
+        donors.forEach(donor => {
+          if (!donor || !donor.id || !donor.name) {
+            console.warn('Invalid donor data:', donor);
+            return;
+          }
+          donorTableBody.innerHTML += `
+            <tr>
+              <td>${sanitizeInput(donor.name)}</td>
+              <td>${sanitizeInput(donor.email || '-')}</td>
+              <td>${sanitizeInput(donor.phone || '-')}</td>
+              <td>${sanitizeInput(donor.address || '-')}</td>
+              <td class="action-buttons">
+                <button class="edit" onclick="editDonor('${donor.id}')"><i class="fas fa-edit"></i> Edit</button>
+                <button class="delete" onclick="deleteDonor('${donor.id}')"><i class="fas fa-trash"></i> Delete</button>
+              </td>
+            </tr>
+          `;
+          donationDonorSelect.append(`<option value="${donor.id}">${sanitizeInput(donor.name)}</option>`);
+          filterDonationDonorSelect.append(`<option value="${donor.id}">${sanitizeInput(donor.name)}</option>`);
+          filterComplaintDonorSelect.append(`<option value="${donor.id}">${sanitizeInput(donor.name)}</option>`);
+        });
+
+        donationDonorSelect.trigger('change');
+        filterDonationDonorSelect.trigger('change');
+        filterComplaintDonorSelect.trigger('change');
+      } catch (error) {
+        console.error('Error loading donors:', error);
+        showError('Error loading donors: ' + error.message);
+      }
+    }
+
+    // Load recent donations into table
+    async function loadRecentDonations() {
+      try {
+        const donations = await fetchRecentDonations();
+        const donors = await fetchDonors();
+        const donationTableBody = document.getElementById('donationTableBody');
+        console.log('Loading donations:', donations);
+        donationTableBody.innerHTML = '';
+
+        if (!donations || donations.length === 0) {
+          donationTableBody.innerHTML = '<tr><td colspan="5" class="no-data">No recent donations found.</td></tr>';
+          return;
+        }
+
+        donations.forEach(donation => {
+          if (!donation || !donation.id || !donation.donor_id) {
+            console.warn('Invalid donation data:', donation);
+            return;
+          }
+          const donor = donors.find(d => d && d.id === donation.donor_id);
+          donationTableBody.innerHTML += `
+            <tr data-donor-id="${donation.donor_id}">
+              <td>${donor ? sanitizeInput(donor.name) : '-'}</td>
+              <td>${sanitizeInput(donation.amount || '-')}</td>
+              <td>${formatDate(donation.donation_date)}</td>
+              <td>${sanitizeInput(donation.purpose || '-')}</td>
+              <td class="action-buttons">
+                <button class="edit" onclick="editDonation('${donation.id}')"><i class="fas fa-edit"></i> Edit</button>
+                <button class="delete" onclick="deleteDonation('${donation.id}')"><i class="fas fa-trash"></i> Delete</button>
+              </td>
+            </tr>
+          `;
+        });
+      } catch (error) {
+        console.error('Error loading donations:', error);
+        showError('Error loading donations: ' + error.message);
+      }
+    }
+
+    // Load complaints into table
+    async function loadComplaints() {
+      try {
+        const complaints = await fetchComplaints();
+        const donors = await fetchDonors();
+        const donations = await fetchRecentDonations();
+        const complaintTableBody = document.getElementById('complaintTableBody');
+        console.log('Loading complaints:', complaints);
+        complaintTableBody.innerHTML = '';
+
+        if (!complaints || complaints.length === 0) {
+          complaintTableBody.innerHTML = '<tr><td colspan="8" class="no-data">No complaints found.</td></tr>';
+          return;
+        }
+
+        complaints.forEach(complaint => {
+          if (!complaint || !complaint.id || !complaint.donor_id || !complaint.donation_id) {
+            console.warn('Invalid complaint data:', complaint);
+            return;
+          }
+          const donation = donations.find(d => d && d.id === complaint.donation_id);
+          const donor = donors.find(d => d && d.id === complaint.donor_id);
+          const statusClass = complaint.status === 'Pending' ? 'status-pending' : complaint.status === 'Resolved' ? 'status-resolved' : 'status-dismissed';
+          const actions = complaint.status === 'Pending' ? `
+            <button class="resolve" onclick="updateComplaintStatus('${complaint.id}', 'Resolved')"><i class="fas fa-check"></i> Resolve</button>
+            <button class="dismiss" onclick="updateComplaintStatus('${complaint.id}', 'Dismissed')"><i class="fas fa-times"></i> Dismiss</button>
+          ` : '';
+          complaintTableBody.innerHTML += `
+            <tr data-donor-id="${complaint.donor_id}">
+              <td>${donor ? sanitizeInput(donors.name) : '-'}</td>
+              <td>${donation ? sanitizeInput(donations.amount || '-') : '-'}</td>
+              <td>${donation ? formatDate(donations.donation_date) : '-'}</td>
+              <td>${donation ? sanitizeInput(donations.purpose || '-') : '-'}</td>
+              <td>${sanitizeInput(complaint.description || '-')}</td>
+              <td class="${statusClass}">${sanitizeInput(complaint.status || '-')}</td>
+              <td>${formatDate(complaint.created_at)}</td>
+              <td class="action-buttons">${actions}</td>
+            </tr>
+          `;
+        });
+      } catch (error) {
+        console.error('Error loading complaints:', error);
+        showError('Error loading complaints: ' + error.message);
+      }
+    }
+
+    // Edit donor
+    async function editDonor(id) {
+      try {
+        const donors = await fetchDonors();
+        const donor = donors.find(d => d && d.id == id);
+        if (donor) {
+          editingDonorId = id;
+          document.getElementById('donorId').value = id;
+          document.getElementById('donorName').value = donor.name || '';
+          document.getElementById('donorEmail').value = donor.email || '';
+          document.getElementById('donorPhone').value = donor.phone || '';
+          document.getElementById('donorAddress').value = donor.address || '';
+          document.getElementById('donorForm').querySelector('button[type="submit"]').innerHTML = '<i class="fas fa-save"></i> Update Donor';
+        } else {
+          showError('Donor not found.');
+        }
+      } catch (error) {
+        console.error('Error editing donor:', error);
+        showError('Error editing donor: ' + error.message);
+      }
+    }
+
+    // Delete donor
+    async function deleteDonor(id) {
+      if (confirm('Are you sure you want to delete this donor? This will also delete their donations and complaints.')) {
+        try {
+          console.log('Deleting donor:', id);
+          const response = await fetch(`${API_BASE_URL}/api/donors/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (response.status === 401) {
+            showError('Session expired. Please log in again.');
+            window.location.href = 'login.html';
+            return;
+          }
+          if (!response.ok) throw new Error(`Failed to delete donor: ${response.statusText}`);
+          await loadDonors();
+          await loadRecentDonations();
+          await loadComplaints();
+          await updateDashboardCounts();
+          clearDonorForm();
+        } catch (error) {
+          console.error('Error deleting donor:', error);
+          showError('Failed to delete donor: ' + error.message);
+        }
+      }
+    }
+
+    // Donor form submission
+    document.getElementById('donorForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('donorName').value.trim();
+      const email = document.getElementById('donorEmail').value.trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!name) {
+        showError('Please enter a donor name.');
+        return;
+      }
+      if (!email || !emailRegex.test(email)) {
+        showError('Please enter a valid email address.');
+        return;
+      }
+      const donor = {
+        name,
+        email,
+        phone: document.getElementById('donorPhone').value.trim(),
+        address: document.getElementById('donorAddress').value.trim()
+      };
+      try {
+        console.log('Saving donor:', donor);
+        const url = editingDonorId ? `${API_BASE_URL}/api/donors/${editingDonorId}` : `${API_BASE_URL}/api/donors`;
+        const method = editingDonorId ? 'PUT' : 'POST';
+        const response = await fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(donor)
+        });
+        if (response.status === 401) {
+          showError('Session expired. Please log in again.');
+          window.location.href = 'login.html';
+          return;
+        }
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || `Failed to save donor: ${response.statusText}`);
+        }
+        clearDonorForm();
+        await loadDonors();
+        await updateDashboardCounts();
+      } catch (error) {
+        console.error('Error saving donor:', error);
+        showError('Failed to save donor: ' + error.message);
+      }
+    };
+
+    // Clear donor form
+    function clearDonorForm() {
+      document.getElementById('donorForm').reset();
+      document.getElementById('donorId').value = '';
+      editingDonorId = null;
+      document.getElementById('donorForm').querySelector('button[type="submit"]').innerHTML = '<i class="fas fa-save"></i> Save Donor';
+    }
+
+    // Edit donation
+    async function editDonation(id) {
+      try {
+        const donations = await fetchRecentDonations();
+        const donation = donations.find(d => d && d.id == id);
+        if (donation) {
+          editingDonationId = id;
+          document.getElementById('donationId').value = id;
+          $('#donationDonor').val(donation.donor_id || '').trigger('change');
+          document.getElementById('donationAmount').value = donation.amount || '';
+          document.getElementById('donationDate').value = donation.donation_date || '';
+          document.getElementById('donationPurpose').value = donation.purpose || '';
+          document.getElementById('donationForm').querySelector('button[type="submit"]').innerHTML = '<i class="fas fa-save"></i> Update Donation';
+        } else {
+          showError('Donation not found.');
+        }
+      } catch (error) {
+        console.error('Error editing donation:', error);
+        showError('Error editing donation: ' + error.message);
+      }
+    }
+
+    // Delete donation
+    async function deleteDonation(id) {
+      if (confirm('Are you sure you want to delete this donation? This will also delete associated complaints.')) {
+        try {
+          console.log('Deleting donation:', id);
+          const response = await fetch(`${API_BASE_URL}/api/donations/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (response.status === 401) {
+            showError('Session expired. Please log in again.');
+            window.location.href = 'login.html';
+            return;
+          }
+          if (!response.ok) throw new Error(`Failed to delete donation: ${response.statusText}`);
+          await loadRecentDonations();
+          await loadComplaints();
+          await updateDashboardCounts();
+          clearDonationForm();
+        } catch (error) {
+          console.error('Error deleting donation:', error);
+          showError('Failed to delete donation: ' + error.message);
+        }
+      }
+    }
+
+    // Donation form submission
+    document.getElementById('donationForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const donorId = $('#donationDonor').val();
+      const amount = document.getElementById('donationAmount').value;
+      const donationDate = document.getElementById('donationDate').value;
+      if (!donorId) {
+        showError('Please select a donor.');
+        return;
+      }
+      if (!amount || amount <= 0) {
+        showError('Please enter a valid donation amount.');
+        return;
+      }
+      if (!donationDate) {
+        showError('Please select a valid donation date.');
+        return;
+      }
+      const donation = {
+        donor_id: donorId,
+        amount,
+        donation_date: donationDate,
+        purpose: document.getElementById('donationPurpose').value.trim()
+      };
+      try {
+        console.log('Saving donation:', donation);
+        const url = editingDonationId ? `${API_BASE_URL}/api/donations/${editingDonationId}` : `${API_BASE_URL}/api/donations`;
+        const method = editingDonationId ? 'PUT' : 'POST';
+        const response = await fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(donation)
+        });
+        if (response.status === 401) {
+          showError('Session expired. Please log in again.');
+          window.location.href = 'login.html';
+          return;
+        }
+        const responseData = await response.json();
+        if (!response.ok) {
+          throw new Error(responseData.message || `Failed to save donation: ${response.statusText}`);
+        }
+        clearDonationForm();
+        await loadRecentDonations();
+        await updateDashboardCounts();
+      } catch (error) {
+        console.error('Error saving donation:', error);
+        showError('Failed to save donation: ' + error.message);
+      }
+    };
+
+    // Clear donation form
+    function clearDonationForm() {
+      document.getElementById('donationForm').reset();
+      document.getElementById('donationId').value = '';
+      $('#donationDonor').val('').trigger('change');
+      editingDonationId = null;
+      document.getElementById('donationForm').querySelector('button[type="submit"]').innerHTML = '<i class="fas fa-save"></i> Save Donation';
+    }
+
+    // Update complaint status
+    async function updateComplaintStatus(id, status) {
+      if (confirm(`Are you sure you want to mark this complaint as ${status}?`)) {
+        try {
+          console.log(`Updating complaint ${id} to status: ${status}`);
+          const response = await fetch(`${API_BASE_URL}/api/donations/complaints/${id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ status })
+          });
+          if (response.status === 401) {
+            showError('Session expired. Please log in again.');
+            window.location.href = 'login.html';
+            return;
+          }
+          if (!response.ok) throw new Error(`Failed to mark complaint as ${status}: ${response.statusText}`);
+          await loadComplaints();
+          await updateDashboardCounts();
+        } catch (error) {
+          console.error(`Error marking complaint as ${status}:`, error);
+          showError(`Failed to mark complaint as ${status}: ` + error.message);
+        }
+      }
+    }
+
+    // Apply donor filters
+    function applyDonorFilters() {
+      const nameFilter = document.getElementById('filterDonorName').value.toLowerCase();
+      const emailFilter = document.getElementById('filterDonorEmail').value.toLowerCase();
+      const rows = document.getElementById('donorTableBody').querySelectorAll('tr');
+
+      rows.forEach(row => {
+        if (row.classList.contains('no-data')) return;
+        const name = row.cells[0].textContent.toLowerCase();
+        const email = row.cells[1].textContent.toLowerCase();
+        const matchesName = name.includes(nameFilter);
+        const matchesEmail = email.includes(emailFilter);
+        row.style.display = matchesName && matchesEmail ? '' : 'none';
+      });
+    }
+
+    // Apply donation filters
+    function applyDonationFilters() {
+      const donorFilter = $('#filterDonationDonor').val();
+      const yearFilter = document.getElementById('filterDonationYear').value;
+      const rows = document.getElementById('donationTableBody').querySelectorAll('tr');
+
+      rows.forEach(row => {
+        if (row.classList.contains('no-data')) return;
+        const donorId = row.dataset.donorId;
+        const donationDate = row.cells[2].textContent;
+        const donationYear = donationDate && donationDate !== 'N/A' ? new Date(donationDate).getFullYear().toString() : '';
+        const matchesDonor = !donorFilter || donorId === donorFilter;
+        const matchesYear = !yearFilter || donationYear === yearFilter;
+        row.style.display = matchesDonor && matchesYear ? '' : 'none';
+      });
+    }
+
+    // Apply complaint filters
+    function applyComplaintFilters() {
+      const donorFilter = $('#filterComplaintDonor').val();
+      const statusFilter = $('#filterComplaintStatus').val();
+      const rows = document.getElementById('complaintTableBody').querySelectorAll('tr');
+
+      rows.forEach(row => {
+        if (row.classList.contains('no-data')) return;
+        const donorId = row.dataset.donorId;
+        const status = row.cells[5].textContent;
+        const matchesDonor = !donorFilter || donorId === donorFilter;
+        const matchesStatus = !statusFilter || status === statusFilter;
+        row.style.display = matchesDonor && matchesStatus ? '' : 'none';
+      });
+    }
+
+    // Export donors to PDF
+    async function downloadDonorsPDF() {
+      try {
+        const donors = await fetchDonors();
+        if (!donors || donors.length === 0) {
+          showError('No donors to export.');
+          return;
+        }
+        const doc = new jsPDF();
+        let yOffset = 10;
+
+        doc.setFontSize(16);
+        doc.text('Donor List', 10, yOffset);
+        yOffset += 10;
+
+        donors.forEach((donor, index) => {
+          if (index > 0 && yOffset > 280) {
+            doc.addPage();
+            yOffset = 10;
+          }
+          doc.setFontSize(12);
+          doc.text(`Name: ${donor.name || '-'}`, 10, yOffset);
+          yOffset += 10;
+          doc.text(`Email: ${donor.email || '-'}`, 10, yOffset);
+          yOffset += 10;
+          doc.text(`Phone: ${donor.phone || 'N/A'}`, 10, yOffset);
+          yOffset += 10;
+          doc.text(`Address: ${donor.address || 'N/A'}`, 10, yOffset);
+          yOffset += 15;
+        });
+
+        doc.save('donors.pdf');
+      } catch (error) {
+        console.error('Error exporting donors to PDF:', error);
+        showError('Failed to export donors to PDF: ' + error.message);
+      }
+    }
+
+    // Export donors to Excel
+    async function downloadDonorsExcel() {
+      try {
+        const donors = await fetchDonors();
+        if (!donors || donors.length === 0) {
+          showError('No donors to export.');
+          return;
+        }
+        const data = donors.map(donor => ({
+          Name: donor.name || '',
+          Email: donor.email || '',
+          Phone: donor.phone || '',
+          Address: donor.address || ''
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Donors');
+        XLSX.writeFile(wb, 'donors.xlsx');
+      } catch (error) {
+        console.error('Error exporting donors to Excel:', error);
+        showError('Failed to export donors to Excel: ' + error.message);
+      }
+    }
+
+    // Export recent donations to PDF
+    async function downloadDonationsPDF() {
+      try {
+        const donations = await fetchRecentDonations();
+        const donors = await fetchDonors();
+        if (!donations || donations.length === 0) {
+          showError('No donations to export.');
+          return;
+        }
+        const doc = new jsPDF();
+        let yOffset = 10;
+
+        doc.setFontSize(16);
+        doc.text('Recent Donations List', 10, yOffset);
+        yOffset += 10;
+
+        donations.forEach((donation, index) => {
+          if (index > 0 && yOffset > 280) {
+            doc.addPage();
+            yOffset = 10;
+          }
+          const donor = donors.find(d => d && d.id === donation.donor_id);
+          doc.setFontSize(12);
+          doc.text(`Donor: ${donor ? donor.name : 'Unknown'}`, 10, yOffset);
+          yOffset += 10;
+          doc.text(`Amount: ${donation.amount || '-'}`, 10, yOffset);
+          yOffset += 10;
+          doc.text(`Date: ${formatDate(donation.donation_date)}`, 10, yOffset);
+          yOffset += 10;
+          doc.text(`Purpose: ${donation.purpose || 'N/A'}`, 10, yOffset);
+          yOffset += 15;
+        });
+
+        doc.save('recent_donations.pdf');
+      } catch (error) {
+        console.error('Error exporting donations to PDF:', error);
+        showError('Failed to export donations to PDF: ' + error.message);
+      }
+    }
+
+    // Export recent donations to Excel
+    async function downloadDonationsExcel() {
+      try {
+        const donations = await fetchRecentDonations();
+        const donors = await fetchDonors();
+        if (!donations || donations.length === 0) {
+          showError('No donations to export.');
+          return;
+        }
+        const data = donations.map(donation => {
+          const donor = donors.find(d => d && d.id === donation.donor_id);
+          return {
+            Donor: donor ? donor.name : 'Unknown',
+            Amount: donation.amount || '',
+            Date: formatDate(donation.donation_date),
+            Purpose: donation.purpose || ''
+          };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Recent Donations');
+        XLSX.writeFile(wb, 'recent_donations.xlsx');
+      } catch (error) {
+        console.error('Error exporting donations to Excel:', error);
+        showError('Failed to export donations to Excel: ' + error.message);
+      }
+    }
+
+    // Export complaints to PDF
+    async function downloadComplaintsPDF() {
+      try {
+        const complaints = await fetchComplaints();
+        const donors = await fetchDonors();
+        const donations = await fetchRecentDonations();
+        if (!complaints || complaints.length === 0) {
+          showError('No complaints to export.');
+          return;
+        }
+        const doc = new jsPDF();
+        let yOffset = 10;
+
+        doc.setFontSize(16);
+        doc.text('Complaints List', 10, yOffset);
+        yOffset += 10;
+
+        complaints.forEach((complaint, index) => {
+          if (index > 0 && yOffset > 280) {
+            doc.addPage();
+            yOffset = 10;
+          }
+          const donor = donors.find(d => d && d.id === complaint.donor_id);
+          const donation = donations.find(d => d && d.id === complaint.donation_id);
+          doc.setFontSize(12);
+          doc.text(`Donor: ${donor ? donor.name : 'Unknown'}`, 10, yOffset);
+          yOffset += 10;
+          doc.text(`Donation Amount: ${donation ? donation.amount : '-'}`, 10, yOffset);
+          yOffset += 10;
+          doc.text(`Donation Date: ${donation ? formatDate(donation.donation_date) : '-'}`, 10, yOffset);
+          yOffset += 10;
+          doc.text(`Donation Purpose: ${donation ? donation.purpose || 'N/A' : '-'}`, 10, yOffset);
+          yOffset += 10;
+          doc.text(`Complaint: ${complaint.description || '-'}`, 10, yOffset);
+          yOffset += 10;
+          doc.text(`Status: ${complaint.status || '-'}`, 10, yOffset);
+          yOffset += 10;
+          doc.text(`Submitted On: ${formatDate(complaint.created_at)}`, 10, yOffset);
+          yOffset += 15;
+        });
+
+        doc.save('complaints.pdf');
+      } catch (error) {
+        console.error('Error exporting complaints to PDF:', error);
+        showError('Failed to export complaints to PDF: ' + error.message);
+      }
+    }
+
+    // Export complaints to Excel
+    async function downloadComplaintsExcel() {
+      try {
+        const complaints = await fetchComplaints();
+        const donors = await fetchDonors();
+        const donations = await fetchRecentDonations();
+        if (!complaints || complaints.length === 0) {
+          showError('No complaints to export.');
+          return;
+        }
+        const data = complaints.map(complaint => {
+          const donor = donors.find(d => d && d.id === complaint.donor_id);
+          const donation = donations.find(d => d && d.id === complaint.donation_id);
+          return {
+            Donor: donor ? donor.name : 'Unknown',
+            'Donation Amount': donation ? donation.amount : '-',
+            'Donation Date': donation ? formatDate(donation.donation_date) : '-',
+            'Donation Purpose': donation ? donation.purpose || '' : '-',
+            'Complaint Description': complaint.description || '',
+            Status: complaint.status || '',
+            'Submitted On': formatDate(complaint.created_at)
+          };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Complaints');
+        XLSX.writeFile(wb, 'complaints.xlsx');
+      } catch (error) {
+        console.error('Error exporting complaints to Excel:', error);
+        showError('Failed to export complaints to Excel: ' + error.message);
+      }
+    }
+   
+
+  </script>
+</body>
+</html>

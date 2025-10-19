@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Login Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        input, select { padding: 8px; margin: 5px; width: 200px; }
+        .result { margin-top: 10px; padding: 10px; background-color: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <h1>Staff Login and Dashboard Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Register Staff User</h2>
+        <input type="text" id="regName" placeholder="Staff Name" value="Test Staff">
+        <input type="email" id="regEmail" placeholder="Email" value="staff@test.com">
+        <input type="password" id="regPassword" placeholder="Password" value="password123">
+        <button onclick="registerStaff()">Register Staff</button>
+        <div id="regResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Login as Staff</h2>
+        <input type="email" id="loginEmail" placeholder="Email" value="staff@test.com">
+        <input type="password" id="loginPassword" placeholder="Password" value="password123">
+        <button onclick="loginStaff()">Login Staff</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Test Token Validation</h2>
+        <button onclick="testTokenValidation()">Test Token</button>
+        <div id="tokenResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Test Staff Profile</h2>
+        <button onclick="testStaffProfile()">Get Staff Profile</button>
+        <div id="profileResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Test Staff Dashboard Access</h2>
+        <button onclick="testDashboardAccess()">Test Dashboard</button>
+        <div id="dashboardResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>6. Go to Staff Dashboard</h2>
+        <button onclick="goToStaffDashboard()">Open Staff Dashboard</button>
+        <div id="redirectResult" class="result"></div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:5001';
+
+        async function registerStaff() {
+            const name = document.getElementById('regName').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+            const resultDiv = document.getElementById('regResult');
+
+            if (!name || !email || !password) {
+                resultDiv.innerHTML = '<span style="color: red;">Please fill all fields</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/staff/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<span style="color: green;">✅ Staff registration successful: ${data.message}</span>`;
+                } else {
+                    resultDiv.innerHTML = `<span style="color: red;">❌ Registration failed: ${data.message}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span style="color: red;">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function loginStaff() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const resultDiv = document.getElementById('loginResult');
+
+            if (!email || !password) {
+                resultDiv.innerHTML = '<span style="color: red;">Please fill email and password</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/staff/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    localStorage.setItem('token', data.token);
+                    resultDiv.innerHTML = `<span style="color: green;">✅ Staff login successful: ${data.message}</span><br>Token: ${data.token.substring(0, 50)}...`;
+                } else {
+                    resultDiv.innerHTML = `<span style="color: red;">❌ Login failed: ${data.message}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span style="color: red;">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function testTokenValidation() {
+            const token = localStorage.getItem('token');
+            const resultDiv = document.getElementById('tokenResult');
+
+            if (!token) {
+                resultDiv.innerHTML = '<span style="color: red;">❌ No token found. Please login first.</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/auth/validate`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `<span style="color: green;">✅ Token valid! User: ${JSON.stringify(data.user)}</span>`;
+                } else {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `<span style="color: red;">❌ Token invalid: ${data.message}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span style="color: red;">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function testStaffProfile() {
+            const token = localStorage.getItem('token');
+            const resultDiv = document.getElementById('profileResult');
+
+            if (!token) {
+                resultDiv.innerHTML = '<span style="color: red;">❌ No token found. Please login first.</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/staff/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `<span style="color: green;">✅ Staff profile loaded: ${JSON.stringify(data)}</span>`;
+                } else {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `<span style="color: red;">❌ Failed to load profile: ${data.message}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span style="color: red;">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function testDashboardAccess() {
+            const token = localStorage.getItem('token');
+            const resultDiv = document.getElementById('dashboardResult');
+
+            if (!token) {
+                resultDiv.innerHTML = '<span style="color: red;">❌ No token found. Please login first.</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/dashboard/counts`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `<span style="color: green;">✅ Dashboard access successful! Data: ${JSON.stringify(data)}</span>`;
+                } else {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `<span style="color: red;">❌ Dashboard access denied: ${data.message}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span style="color: red;">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        function goToStaffDashboard() {
+            const token = localStorage.getItem('token');
+            const resultDiv = document.getElementById('redirectResult');
+
+            if (!token) {
+                resultDiv.innerHTML = '<span style="color: red;">❌ No token found. Please login first.</span>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<span style="color: green;">✅ Redirecting to staff dashboard...</span>';
+            window.location.href = 'staff_dashboard.html';
+        }
+    </script>
+</body>
+</html> 

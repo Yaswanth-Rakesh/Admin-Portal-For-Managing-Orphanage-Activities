@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Welcome Message</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .welcome-message {
+            background: #007bff;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 18px;
+            font-weight: 500;
+            text-align: center;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success {
+            color: #155724;
+            background: #d4edda;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Welcome Message Functionality</h1>
+        
+        <div id="welcomeMessage" class="welcome-message" style="display: none;">
+            Welcome, <span id="donorName"></span>!
+        </div>
+
+        <div class="test-section">
+            <h3>Step 1: Check Token</h3>
+            <button onclick="checkToken()">Check Token</button>
+            <div id="tokenResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Step 2: Validate Token</h3>
+            <button onclick="validateToken()">Validate Token</button>
+            <div id="validationResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Step 3: Fetch Donor Info</h3>
+            <button onclick="fetchDonorInfo()">Fetch Donor Info</button>
+            <div id="donorResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Step 4: Display Welcome Message</h3>
+            <button onclick="displayWelcome()">Display Welcome</button>
+            <div id="welcomeResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Step 5: Test Complete Flow</h3>
+            <button onclick="testCompleteFlow()">Test Complete Flow</button>
+            <div id="completeResult"></div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+
+        function showResult(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="${isError ? 'error' : 'success'}">${message}</div>`;
+        }
+
+        function checkToken() {
+            if (!token) {
+                showResult('tokenResult', '❌ No token found in localStorage. Please login first.', true);
+            } else {
+                showResult('tokenResult', `✅ Token found: ${token.substring(0, 20)}...`);
+            }
+        }
+
+        async function validateToken() {
+            if (!token) {
+                showResult('validationResult', '❌ No token to validate. Please login first.', true);
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:5001/api/auth/validate', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                showResult('validationResult', `✅ Token is valid! User: ${data.user.email} (${data.user.role})`);
+            } catch (error) {
+                showResult('validationResult', `❌ Token validation failed: ${error.message}`, true);
+            }
+        }
+
+        async function fetchDonorInfo() {
+            if (!token) {
+                showResult('donorResult', '❌ No token found. Please login first.', true);
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:5001/api/donors/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const donor = await response.json();
+                showResult('donorResult', `✅ Donor info fetched successfully!<br><pre>${JSON.stringify(donor, null, 2)}</pre>`);
+            } catch (error) {
+                showResult('donorResult', `❌ Failed to fetch donor info: ${error.message}`, true);
+            }
+        }
+
+        async function displayWelcome() {
+            if (!token) {
+                showResult('welcomeResult', '❌ No token found. Please login first.', true);
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:5001/api/donors/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const donor = await response.json();
+                
+                // Set the donor name in the welcome message
+                document.getElementById('donorName').textContent = donor.name || 'User';
+                document.getElementById('welcomeMessage').style.display = 'block';
+                
+                showResult('welcomeResult', `✅ Welcome message displayed for: ${donor.name}`);
+            } catch (error) {
+                showResult('welcomeResult', `❌ Failed to display welcome message: ${error.message}`, true);
+            }
+        }
+
+        async function testCompleteFlow() {
+            if (!token) {
+                showResult('completeResult', '❌ No token found. Please login first.', true);
+                return;
+            }
+
+            try {
+                // Step 1: Validate token
+                const validateResponse = await fetch('http://localhost:5001/api/auth/validate', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!validateResponse.ok) {
+                    throw new Error('Token validation failed');
+                }
+
+                // Step 2: Fetch donor info
+                const donorResponse = await fetch('http://localhost:5001/api/donors/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!donorResponse.ok) {
+                    throw new Error('Failed to fetch donor info');
+                }
+
+                const donor = await donorResponse.json();
+                
+                // Step 3: Display welcome message
+                document.getElementById('donorName').textContent = donor.name || 'User';
+                document.getElementById('welcomeMessage').style.display = 'block';
+                
+                showResult('completeResult', `✅ Complete flow successful! Welcome message displayed for: ${donor.name}<br><br>This is exactly what should happen in the donor dashboard.`);
+            } catch (error) {
+                showResult('completeResult', `❌ Complete flow failed: ${error.message}`, true);
+            }
+        }
+
+        // Auto-run token check on page load
+        window.onload = function() {
+            checkToken();
+        };
+    </script>
+</body>
+</html> 

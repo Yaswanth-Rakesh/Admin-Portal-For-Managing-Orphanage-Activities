@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Orphanage - Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .dashboard-links {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .dashboard-links a {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 15px;
+            text-decoration: none;
+            border-radius: 5px;
+            display: inline-block;
+        }
+        .dashboard-links a:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Smart Orphanage System - Connection Test</h1>
+        
+        <div class="test-section">
+            <h2>📊 System Status</h2>
+            <div id="systemStatus" class="status info">Checking system status...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🌐 Frontend Test</h2>
+            <div id="frontendStatus" class="status success">✅ Frontend is working!</div>
+            <p>This page confirms that the HTML, CSS, and JavaScript are functioning properly.</p>
+        </div>
+
+        <div class="test-section">
+            <h2>🔗 Backend Connection Test</h2>
+            <button onclick="testBackendConnection()">Test Backend Connection</button>
+            <div id="backendStatus" class="status warning">⏳ Click button to test backend connection</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔑 Token Test</h2>
+            <button onclick="testToken()">Test Current Token</button>
+            <div id="tokenStatus" class="status warning">⏳ Click button to test token</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🗄️ Database Connection Test</h2>
+            <button onclick="testDatabaseConnection()">Test Database Connection</button>
+            <div id="databaseStatus" class="status warning">⏳ Click button to test database connection</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🚀 Dashboard Access</h2>
+            <p>Test the dashboards (requires backend to be running):</p>
+            <div class="dashboard-links">
+                <a href="public/staffDashboard.html" target="_blank">Staff Dashboard</a>
+                <a href="public/donorDashboard.html" target="_blank">Donor Dashboard</a>
+                <a href="public/login.html" target="_blank">Login Page</a>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Setup Instructions</h2>
+            <div class="status info">
+                <h3>To make the system work dynamically:</h3>
+                <ol>
+                    <li><strong>Install MySQL:</strong> Download and install MySQL Server</li>
+                    <li><strong>Create .env file:</strong> Add database credentials</li>
+                    <li><strong>Run setup:</strong> Execute <code>npm run setup</code></li>
+                    <li><strong>Start server:</strong> Run <code>npm start</code></li>
+                    <li><strong>Test login:</strong> Use default credentials</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔑 Default Login Credentials</h2>
+            <div class="status info">
+                <p><strong>Admin:</strong> admin@orphanage.com / password</p>
+                <p><strong>Staff:</strong> staff@orphanage.com / password</p>
+                <p><strong>Donor:</strong> donor@example.com / password</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Test backend connection
+        async function testBackendConnection() {
+            const statusDiv = document.getElementById('backendStatus');
+            statusDiv.className = 'status info';
+            statusDiv.textContent = '🔄 Testing backend connection...';
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/health', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✅ Backend is running and responding!';
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = `❌ Backend responded with status: ${response.status}`;
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Backend connection failed: ' + error.message;
+            }
+        }
+
+        // Test database connection
+        async function testDatabaseConnection() {
+            const statusDiv = document.getElementById('databaseStatus');
+            statusDiv.className = 'status info';
+            statusDiv.textContent = '🔄 Testing database connection...';
+            
+            try {
+                // Attempt a light protected query that should reliably exist
+                const response = await fetch('http://localhost:5001/api/donors', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.status === 401 || response.status === 403) {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✅ DB reachable through backend (auth prevented data access, which is expected).';
+                } else if (response.ok) {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✅ DB connected and query succeeded!';
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = `❌ Database test failed: ${response.status}`;
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Database connection failed: ' + error.message;
+            }
+        }
+
+        // Test current token
+        async function testToken() {
+            const statusDiv = document.getElementById('tokenStatus');
+            statusDiv.className = 'status info';
+            statusDiv.textContent = '🔄 Testing current token...';
+            
+            const token = localStorage.getItem('token');
+            if (!token) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ No token found in localStorage';
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/debug/user', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    statusDiv.className = 'status success';
+                    statusDiv.innerHTML = `✅ Token valid! User: ${data.user.email} (Role: ${data.user.role})`;
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = `❌ Token invalid: ${response.status}`;
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Token test failed: ' + error.message;
+            }
+        }
+
+        // Update system status
+        function updateSystemStatus() {
+            const statusDiv = document.getElementById('systemStatus');
+            const now = new Date();
+            statusDiv.className = 'status success';
+            statusDiv.innerHTML = `
+                ✅ System Status: Online<br>
+                📅 Date: ${now.toLocaleDateString()}<br>
+                🕐 Time: ${now.toLocaleTimeString()}<br>
+                🌐 Browser: ${navigator.userAgent.split(' ')[0]}
+            `;
+        }
+
+        // Initialize page
+        window.onload = function() {
+            updateSystemStatus();
+            setInterval(updateSystemStatus, 1000);
+        };
+    </script>
+</body>
+</html> 

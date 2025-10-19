@@ -1,0 +1,1714 @@
+const express = require("express");
+const mysql = require("mysql2");
+const bcrypt = require("bcryptjs");
+const dotenv = require("dotenv");
+const cors = require("cors");
+const path = require("path");
+const jwt = require("jsonwebtoken");
+const { v4: uuidv4 } = require("uuid");
+const { schedule } = require("node-cron");
+
+
+
+const G_staff_id=[];
+dotenv.config();
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Serve static files
+app.use(express.static(path.join(__dirname, "public")));
+
+// Default route
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+
+// Simple health check endpoint for connectivity tests
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+
+
+
+
+
+
+
+
+
+
+// Serve connection test page directly
+app.get("/test_connection.html", (req, res) => {
+  res.sendFile(path.join(__dirname, "test_connection.html"));
+});
+
+// MySQL connection
+const db = mysql.createConnection({
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "smart_orphanage",
+  port: process.env.DB_PORT || 3306,
+});
+
+db.connect((err) => {
+  if (err) {
+    console.error("DB connection failed:", err.message, err.stack);
+    process.exit(1);
+  }
+  console.log("MySQL connected!");
+});
+
+// JWT verification middleware
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader?.split(" ")[1];
+
+  console.log("Received token:", token ? token.substring(0, 20) + "..." : "No token");
+
+  if (!token) {
+    console.error("No token provided in request");
+    return res.status(401).json({ message: "Token required" });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET || "SECRET_KEY", (err, decoded) => {
+    if (err) {
+      console.error("Token verification failed:", err.message);
+      return res.status(401).json({ message: "Invalid token" });
+    }
+
+    console.log("Decoded JWT payload:", decoded);
+
+    // **Make sure to assign req.user properly**
+    req.user = {
+      id: decoded.id,
+      role: decoded.role,
+      email: decoded.email || null
+    };
+
+    console.log("Assigned req.user:", req.user);
+
+    next();
+  });
+};
+
+
+// Role-based authorization middleware
+const restrictTo = (...allowedRoles) => {
+  return (req, res, next) => {
+    console.log("RestrictTo middleware - User:", req.user, "Allowed roles:", allowedRoles);
+    if (!req.user || !allowedRoles.includes(req.user.role)) {
+      console.error(`Access denied for user ${req.user?.email || "unknown"} with role ${req.user?.role || "unknown"}`);
+      return res.status(403).json({ message: "Access denied: Insufficient permissions" });
+    }
+    console.log("Access granted for role:", req.user.role);
+    next();
+  };
+};
+
+module.exports = { verifyToken, restrictTo };
+
+// Debug endpoint to check user roles
+app.get("/api/debug/user", verifyToken, (req, res) => {
+  console.log("Debug endpoint called - User info:", req.user);
+  res.json({
+    user: req.user,
+    message: "Current user info"
+  });
+});
+
+
+
+
+
+
+app.post("/api/comp", verifyToken, restrictTo("staff"), (req, res) => {
+  const { attendance_id, description } = req.body;
+
+  
+
+  if (!attendance_id || !description) {
+    
+    return res.status(400).json({ message: "Attendance ID and description are required" });
+  }
+
+  // Step 2: Find the staff_id linked to the logged-in user
+  const getStaffIdQuery = "SELECT id, user_id FROM staff WHERE user_id = ?";
+ 
+
+  db.query(getStaffIdQuery, [req.user.id], (err, staffResults) => {
+    if (err) {
+     
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    console.log("[Stage 2] staffResults returned:", staffResults);
+
+    if (staffResults.length === 0) {
+ 
+      return res.status(404).json({ message: "Staff record not found for this user" });
+    }
+
+    const staffId = staffResults[0].user_id;
+   
+
+    // Step 3: Verify the attendance record belongs to this staff
+    const verifyAttendanceQuery = "SELECT id, staff_id FROM attendance WHERE id = ? AND staff_id = ?";
+
+    db.query(verifyAttendanceQuery, [parseInt(attendance_id), staffId], (err, attendanceResults) => {
+      if (err) {
+        console.error("[Stage 3] Database error in attendance verification:", err.message);
+        return res.status(500).json({ message: "Database error", error: err.message });
+      }
+
+      if (attendanceResults.length === 0) {
+        return res.status(404).json({ message: "Attendance record not found or not associated with this staff" });
+      }
+
+      // Step 4: Check if complaint already exists
+      const checkComplaintQuery = "SELECT id FROM staff_attendance_complaints WHERE attendance_id = ? AND staff_id = ?";
+
+      db.query(checkComplaintQuery, [parseInt(attendance_id), staffId], (err, complaintResults) => {
+        if (err) {
+          console.error("[Stage 4] Database error in complaint check:", err.message);
+          return res.status(500).json({ message: "Database error", error: err.message });
+        }
+
+        if (complaintResults.length > 0) {
+          return res.status(400).json({ message: "A complaint for this attendance record already exists" });
+        }
+
+        // Step 5: Insert complaint
+        const insertComplaintQuery = `
+          INSERT INTO staff_attendance_complaints (a_staff_id,staff_id, attendance_id, description, status)
+          VALUES (?,?, ?, ?, 'Pending')
+        `;
+
+        db.query(insertComplaintQuery, [staffResults[0].user_id,staffResults[0].id, parseInt(attendance_id), description], (err, result) => {
+          if (err) {
+            return res.status(500).json({ message: "Database error", error: err.message });
+          }
+          res.status(201).json({ message: "Attendance complaint submitted successfully", id: result.insertId });
+        });
+      });
+    });
+  });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Role-based registration
+const registerUser = async (req, res, role) => {
+  const { name, email, password, phone, address, jobTitle } = req.body;
+
+  if (!email || !password) {
+    console.error(`Registration failed: Missing required fields for ${role}`);
+    return res.status(400).json({ message: "Email and password are required" });
+  }
+
+  if (role === "staff" && !jobTitle) {
+    console.error(`Registration failed: Missing jobTitle for staff`);
+    return res.status(400).json({ message: "Job title is required for staff" });
+  }
+
+  if (!["admin", "staff", "donor"].includes(role)) {
+    console.error(`Registration failed: Invalid role ${role}`);
+    return res.status(400).json({ message: "Invalid role" });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const query = "INSERT INTO users (name, email, password, phone, address, role, job_title) VALUES (?, ?, ?, ?, ?, ?, ?)";
+    db.query(query, [name || null, email, hashedPassword, phone || null, address || null, role, jobTitle || null], (err, result) => {
+      if (err) {
+        if (err.code === "ER_DUP_ENTRY") {
+          return res.status(400).json({ message: "Email already exists" });
+        }
+        console.error(`Database error during ${role} registration:`, err.message);
+        return res.status(500).json({ message: "Database error", error: err.message });
+      }
+      console.log(`Registered ${role} user: ${email}`);
+      res.status(201).json({ message: `${role.charAt(0).toUpperCase() + role.slice(1)} registered successfully!`, id: result.insertId });
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Server error during password hashing" });
+  }
+};
+
+// Role-based login
+const loginUser = (req, res, role) => {
+  const { email, password, jobTitle } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password required" });
+  }
+
+  if (role === "staff" && !jobTitle) {
+    return res.status(400).json({ message: "Job title is required for staff" });
+  }
+
+  const query = role === "staff" 
+    ? "SELECT * FROM users WHERE email = ? AND role = ? AND job_title = ?"
+    : "SELECT * FROM users WHERE email = ? AND role = ?";
+  const queryParams = role === "staff" ? [email, role, jobTitle] : [email, role];
+
+  db.query(query, queryParams, async (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (results.length === 0) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const user = results[0];
+    try {
+      const match = await bcrypt.compare(password, user.password);
+      if (!match) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role, jobTitle: user.job_title },
+        process.env.JWT_SECRET || "SECRET_KEY",
+        { expiresIn: "1h" }
+      );
+      res.status(200).json({ message: "Login successful", token });
+    } catch (err) {
+      res.status(500).json({ message: "Server error during password verification" });
+    }
+  });
+};
+
+// Registration endpoints
+app.post("/api/admin/register", async (req, res) => registerUser(req, res, "admin"));
+app.post("/api/staff/register", async (req, res) => registerUser(req, res, "staff"));
+app.post("/api/donor/register", async (req, res) => registerUser(req, res, "donor"));
+
+// Login endpoints
+app.post("/api/admin/login", (req, res) => loginUser(req, res, "admin"));
+app.post("/api/staff/login", (req, res) => loginUser(req, res, "staff"));
+app.post("/api/donor/login", (req, res) => loginUser(req, res, "donor"));
+
+// Token validation endpoint
+app.get("/api/auth/validate", verifyToken, (req, res) => {
+  res.json({
+    message: "Token is valid",
+    user: {
+      id: req.user.id,
+      email: req.user.email,
+      role: req.user.role,
+      jobTitle: req.user.jobTitle,
+    },
+  });
+});
+
+// Donor donations - MUST be defined BEFORE /api/:role/me to avoid route conflicts
+app.get("/api/donations/me", verifyToken, restrictTo("donor", "user"), (req, res) => {
+  const userId = req.user.id;
+
+  const query = `
+    SELECT *
+    FROM donations
+    WHERE donor_id = ?
+  `;
+
+  db.query(query, [userId], (err, results) => {
+    if (err) {
+      console.error("Database error in /api/donations/me:", err.message);
+      return res.status(500).json({ error: "Database error" });
+    }
+    console.log(`Donations found for donor ID ${userId}:`, JSON.stringify(results));
+    res.json(results);
+  });
+});
+
+// Update donor profile - MUST be defined BEFORE /api/:role/me to avoid route conflicts
+app.put("/api/donors/me", verifyToken, restrictTo("donor", "user"), (req, res) => {
+  const { name, email, phone, address } = req.body;
+  
+  if (!name || !email || !phone) {
+    console.error("Missing required fields in /api/donors/me PUT:", { name, email, phone });
+    return res.status(400).json({ message: "Required fields missing: name, email, phone" });
+  }
+
+  const query = `
+    UPDATE users
+    SET name = ?, email = ?, phone = ?, address = ?
+    WHERE id = ? AND role IN ('donor', 'user')
+  `;
+  db.query(query, [name, email, phone, address || null, req.user.id], (err, result) => {
+    if (err) {
+      if (err.code === "ER_DUP_ENTRY") {
+        console.error(`Profile update failed: Email ${email} already exists`);
+        return res.status(400).json({ message: "Email already exists" });
+      }
+      console.error(`Database error in /api/donors/me PUT:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Donor not found" });
+    }
+    res.json({ message: "Profile updated successfully" });
+  });
+});
+
+// Donor complaints - MUST be defined BEFORE /api/:role/me to avoid route conflicts
+app.get("/api/donation/complaints/me", verifyToken, restrictTo("donor", "user"), (req, res) => {
+  const query = `
+    SELECT dc.id, dc.user_id as donor_id, dc.donation_id, dc.description, dc.status, dc.created_at, 
+           d.amount, d.donation_date
+    FROM donation_complaints dc
+    JOIN donations d ON dc.donation_id = d.id
+    WHERE dc.user_id = ?
+    ORDER BY dc.created_at DESC
+  `;
+  db.query(query, [req.user.id], (err, results) => {
+    if (err) {
+      console.error("Database error in /api/donation/complaints/me:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+
+
+
+
+// Get current staff/donor info
+app.get("/api/:role/me", verifyToken, (req, res) => {
+  const roleParam = req.params.role; // 'staff' or 'donors'
+  if (!["staff", "donors"].includes(roleParam)) {
+    return res.status(400).json({ message: "Invalid role" });
+  }
+  const expectedRoles = roleParam === "donors" ? ["donor", "user"] : ["staff"];
+  if (!expectedRoles.includes(req.user.role)) {
+    return res.status(403).json({ message: "Access denied: Incorrect role" });
+  }
+  const query = "SELECT id, name, email, phone, address, role, job_title FROM users WHERE id = ? AND role IN (?)";
+  db.query(query, [req.user.id, expectedRoles], (err, results) => {
+    if (err) {
+      console.error(`Database error in /api/${roleParam}/me:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (results.length === 0) {
+      return res.status(404).json({ message: `${roleParam.charAt(0).toUpperCase() + roleParam.slice(1)} not found` });
+    }
+
+    const user = results[0];
+    user.phone = user.phone || "Not provided";
+    user.address = user.address || "Not provided";
+    user.job_title = user.job_title || "Not provided";
+    res.json(user);
+  });
+});
+
+// Get staff profile
+app.get("/api/staff/me", verifyToken, restrictTo("staff"), (req, res) => {
+  const query = "SELECT id, name, email, phone, role, job_title FROM users WHERE id = ? AND role = 'staff'";
+  db.query(query, [req.user.id], (err, results) => {
+    if (err) {
+      console.error("Database error in /api/staff/me GET:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (results.length === 0) {
+      return res.status(404).json({ message: "Staff not found" });
+    }
+    res.json(results[0]);
+  });
+});
+
+// Update staff profile
+app.put("/api/staff/me", verifyToken, restrictTo("staff", "admin"), (req, res) => {
+  const { name, email, phone } = req.body;
+  if (!name || !email || !phone) {
+    console.error("Missing required fields in /api/staff/me PUT:", { name, email, phone });
+    return res.status(400).json({ message: "Required fields missing: name, email, phone" });
+  }
+
+  const query = "UPDATE users SET name = ?, email = ?, phone = ? WHERE id = ? AND role = 'staff'";
+  db.query(query, [name, email, phone, req.user.id], (err, result) => {
+    if (err) {
+      if (err.code === "ER_DUP_ENTRY") {
+        console.error(`Profile update failed: Email ${email} already exists`);
+        return res.status(400).json({ message: "Email already exists" });
+      }
+      console.error(`Database error in /api/staff/me PUT:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Staff not found" });
+    }
+    res.json({ message: "Profile updated successfully" });
+  });
+});
+
+
+
+// Admin dashboard counts
+app.get("/api/dashboard/counts", verifyToken, restrictTo("admin"), (req, res) => {
+  const queries = {
+    totalChildren: "SELECT COUNT(*) as count FROM children",
+    totalStaff: "SELECT COUNT(*) as count FROM users WHERE role = 'staff'",
+    totalDonors: "SELECT COUNT(*) as count FROM users WHERE role = 'donor'",
+    totalDonations: "SELECT COUNT(*) as count FROM donations",
+    totalComplaints: "SELECT COUNT(*) as count FROM donation_complaints",
+    recentDonations: "SELECT SUM(amount) as total FROM donations WHERE donation_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)", // Updated to use 'date'
+  };
+
+  Promise.all([
+    new Promise((resolve, reject) => {
+      db.query(queries.totalChildren, (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0].count);
+      });
+    }),
+    new Promise((resolve, reject) => {
+      db.query(queries.totalStaff, (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0].count);
+      });
+    }),
+    new Promise((resolve, reject) => {
+      db.query(queries.totalDonors, (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0].count);
+      });
+    }),
+    new Promise((resolve, reject) => {
+      db.query(queries.totalDonations, (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0].count);
+      });
+    }),
+    new Promise((resolve, reject) => {
+      db.query(queries.totalComplaints, (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0].count);
+      });
+    }),
+    new Promise((resolve, reject) => {
+      db.query(queries.recentDonations, (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0].total || 0);
+      });
+    }),
+  ])
+    .then(([totalChildren, totalStaff, totalDonors, totalDonations, totalComplaints, recentDonations]) => {
+      res.json({ totalChildren, totalStaff, totalDonors, totalDonations, totalComplaints, recentDonations });
+    })
+    .catch((err) => {
+      console.error("Database error in /api/dashboard/counts:", err.message);
+      res.status(500).json({ message: "Database error", error: err.message });
+    });
+});
+
+// Donor management endpoints
+app.get("/api/donors", verifyToken, restrictTo("admin"), (req, res) => {
+  db.query("SELECT id, name, email, phone, address FROM users WHERE role = 'donor'", (err, results) => {
+    if (err) {
+      console.error("Database error in /api/donors:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.post("/api/donors", verifyToken, restrictTo("admin"), (req, res) => {
+  const { name, email, phone, address } = req.body;
+  if (!name || !email) {
+    console.error("Missing required fields in /api/donors:", { name, email, phone, address });
+    return res.status(400).json({ message: "Required fields missing: name, email" });
+  }
+
+  const defaultPassword = uuidv4().slice(0, 8);
+  bcrypt.hash(defaultPassword, 10, (err, hashedPassword) => {
+    if (err) {
+      console.error("Error hashing password in /api/donors POST:", err.message);
+      return res.status(500).json({ message: "Server error during password hashing" });
+    }
+    const query = "INSERT INTO users (name, email, phone, address, password, role) VALUES (?, ?, ?, ?, ?, 'donor')";
+    db.query(query, [name, email, phone || null, address || null, hashedPassword], (err, result) => {
+      if (err) {
+        if (err.code === "ER_DUP_ENTRY") {
+          console.error(`Donor creation failed: Email ${email} already exists`);
+          return res.status(400).json({ message: "Email already exists" });
+        }
+        console.error("Database error in /api/donors POST:", err.message);
+        return res.status(500).json({ message: "Database error", error: err.message });
+      }
+      res.status(201).json({ message: "Donor added", id: result.insertId, defaultPassword });
+    });
+  });
+});
+
+app.put("/api/donors/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  const { name, email, phone, address } = req.body;
+  if (!name || !email) {
+    console.error(`Missing required fields in /api/donors/${id} PUT:`, { name, email, phone, address });
+    return res.status(400).json({ message: "Required fields missing: name, email" });
+  }
+
+  const query = "UPDATE users SET name = ?, email = ?, phone = ?, address = ? WHERE id = ? AND role = 'donor'";
+  db.query(query, [name, email, phone || null, address || null, id], (err, result) => {
+    if (err) {
+      if (err.code === "ER_DUP_ENTRY") {
+        console.error(`Donor update failed: Email ${email} already exists`);
+        return res.status(400).json({ message: "Email already exists" });
+      }
+      console.error(`Database error in /api/donors/${id} PUT:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Donor not found" });
+    }
+    res.json({ message: "Donor updated" });
+  });
+});
+
+app.delete("/api/donors/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM users WHERE id = ? AND role = 'donor'", [id], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/donors/${id} DELETE:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Donor not found" });
+    }
+    db.query("DELETE FROM donations WHERE donor_id = ?", [id]);
+    db.query("DELETE FROM donation_complaints WHERE user_id = ?", [id]);
+    res.json({ message: "Donor deleted successfully" });
+  });
+});
+
+// Staff management endpoints
+app.get("/api/staff", verifyToken, restrictTo("admin"), (req, res) => {
+  db.query("SELECT id, name, email, phone, role, job_title FROM users WHERE role = 'staff'", (err, results) => {
+    if (err) {
+      console.error("Database error in /api/staff:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.post("/api/staff", verifyToken, restrictTo("admin"), (req, res) => {
+  const { name, email, phone, jobTitle } = req.body;
+  if (!name || !email || !phone || !jobTitle) {
+    return res.status(400).json({ message: "Required fields missing: name, email, phone, jobTitle" });
+  }
+
+  const defaultPassword = uuidv4().slice(0, 8);
+  bcrypt.hash(defaultPassword, 10, (err, hashedPassword) => {
+    if (err) {
+      return res.status(500).json({ message: "Server error during password hashing" });
+    }
+    const query = "INSERT INTO users (name, email, phone, password, role, job_title) VALUES (?, ?, ?, ?, 'staff', ?)";
+    db.query(query, [name, email, phone, hashedPassword, jobTitle], (err, result) => {
+      if (err) {
+        if (err.code === "ER_DUP_ENTRY") {
+          return res.status(400).json({ message: "Email already exists" });
+        }
+        return res.status(500).json({ message: "Database error", error: err.message });
+      }
+      res.status(201).json({ message: "Staff added", id: result.insertId, defaultPassword });
+    });
+  });
+});
+
+app.put("/api/staff/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  const { name, email, phone, jobTitle } = req.body;
+  if (!name || !email || !phone || !jobTitle) {
+    return res.status(400).json({ message: "Required fields missing: name, email, phone, jobTitle" });
+  }
+
+  const query = "UPDATE users SET name = ?, email = ?, phone = ?, job_title = ? WHERE id = ? AND role = 'staff'";
+  db.query(query, [name, email, phone, jobTitle, id], (err, result) => {
+    if (err) {
+      if (err.code === "ER_DUP_ENTRY") {
+        return res.status(400).json({ message: "Email already exists" });
+      }
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Staff not found" });
+    }
+    res.json({ message: "Staff updated" });
+  });
+});
+
+app.delete("/api/staff/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM users WHERE id = ? AND role = 'staff'", [id], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/staff/${id} DELETE:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Staff not found" });
+    }
+    db.query("DELETE FROM attendance WHERE staff_id = ?", [id]);
+    db.query("DELETE FROM staff_attendance_complaints WHERE staff_id = ?", [id]);
+    res.json({ message: "Staff deleted successfully" });
+  });
+});
+
+// Children management endpoints
+app.get("/api/children", verifyToken, restrictTo("admin"), (req, res) => {
+  const query = "SELECT id, name, dob, gender, admission_date, joined_by, mobile_number, notes FROM children ORDER BY created_at DESC";
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Database error in /api/children:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.get("/api/children/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  const query = "SELECT id, name, dob, gender, admission_date, joined_by, mobile_number, notes FROM children WHERE id = ?";
+  db.query(query, [id], (err, results) => {
+    if (err) {
+      console.error(`Database error in /api/children/${id}:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (results.length === 0) {
+      return res.status(404).json({ message: "Child not found" });
+    }
+    res.json(results[0]);
+  });
+});
+
+app.post("/api/children", verifyToken, restrictTo("admin"), (req, res) => {
+  const { name, dob, gender, admission_date, joined_by, mobile_number, notes } = req.body;
+  if (!name || !dob || !gender || !admission_date) {
+    console.error("Missing required fields in /api/children:", { name, dob, gender, admission_date });
+    return res.status(400).json({ message: "Required fields missing: name, dob, gender, admission_date" });
+  }
+  if (!["Male", "Female", "Other"].includes(gender)) {
+    return res.status(400).json({ message: "Invalid gender. Must be 'Male', 'Female', or 'Other'" });
+  }
+  const query = `
+    INSERT INTO children (name, dob, gender, admission_date, joined_by, mobile_number, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `;
+  db.query(query, [name, dob, gender, admission_date, joined_by || null, mobile_number || null, notes || null], (err, result) => {
+    if (err) {
+      console.error("Database error in /api/children POST:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.status(201).json({ message: "Child added", id: result.insertId });
+  });
+});
+
+app.put("/api/children/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  const { name, dob, gender, admission_date, joined_by, mobile_number, notes } = req.body;
+  if (!name || !dob || !gender || !admission_date) {
+    console.error(`Missing required fields in /api/children/${id} PUT:`, { name, dob, gender, admission_date });
+    return res.status(400).json({ message: "Required fields missing: name, dob, gender, admission_date" });
+  }
+  if (!["Male", "Female", "Other"].includes(gender)) {
+    return res.status(400).json({ message: "Invalid gender. Must be 'Male', 'Female', or 'Other'" });
+  }
+  const query = `
+    UPDATE children
+    SET name = ?, dob = ?, gender = ?, admission_date = ?, joined_by = ?, mobile_number = ?, notes = ?
+    WHERE id = ?
+  `;
+  db.query(query, [name, dob, gender, admission_date, joined_by || null, mobile_number || null, notes || null, id], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/children/${id} PUT:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Child not found" });
+    }
+    res.json({ message: "Child updated" });
+  });
+});
+
+app.delete("/api/children/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM children WHERE id = ?", [id], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/children/${id} DELETE:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Child not found" });
+    }
+    res.json({ message: "Child deleted successfully" });
+  });
+});
+
+// Medical records endpoints
+app.get("/api/medical-records", verifyToken, restrictTo("admin"), (req, res) => {
+  const query = `
+    SELECT mr.id, mr.child_id, mr.medical_date, mr.medical_type, mr.description, mr.notes, c.name as child_name
+    FROM medical_records mr
+    JOIN children c ON mr.child_id = c.id
+    ORDER BY mr.created_at DESC
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Database error in /api/medical-records:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.get("/api/medical-records/:childId", verifyToken, restrictTo("admin"), (req, res) => {
+  const { childId } = req.params;
+  const query = `
+    SELECT mr.id, mr.child_id, mr.medical_date, mr.medical_type, mr.description, mr.notes, c.name as child_name
+    FROM medical_records mr
+    JOIN children c ON mr.child_id = c.id
+    WHERE mr.child_id = ?
+    ORDER BY mr.medical_date DESC
+  `;
+  db.query(query, [childId], (err, results) => {
+    if (err) {
+      console.error(`Database error in /api/medical-records/${childId}:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.post("/api/medical-records", verifyToken, restrictTo("admin"), (req, res) => {
+  const { child_id, medical_date, medical_type, description, notes } = req.body;
+  if (!child_id || !medical_date || !medical_type || !description) {
+    console.error("Missing required fields in /api/medical-records:", { child_id, medical_date, medical_type, description });
+    return res.status(400).json({ message: "Required fields missing: child_id, medical_date, medical_type, description" });
+  }
+  if (!["Checkup", "Vaccination", "Illness", "Allergy", "Medication", "Other"].includes(medical_type)) {
+    return res.status(400).json({ message: "Invalid medical_type" });
+  }
+  const query = `
+    INSERT INTO medical_records (child_id, medical_date, medical_type, description, notes)
+    VALUES (?, ?, ?, ?, ?)
+  `;
+  db.query(query, [child_id, medical_date, medical_type, description, notes || null], (err, result) => {
+    if (err) {
+      console.error("Database error in /api/medical-records POST:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.status(201).json({ message: "Medical record added", id: result.insertId });
+  });
+});
+
+app.put("/api/medical-records/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  const { child_id, medical_date, medical_type, description, notes } = req.body;
+  if (!child_id || !medical_date || !medical_type || !description) {
+    console.error(`Missing required fields in /api/medical-records/${id} PUT:`, { child_id, medical_date, medical_type, description });
+    return res.status(400).json({ message: "Required fields missing: child_id, medical_date, medical_type, description" });
+  }
+  if (!["Checkup", "Vaccination", "Illness", "Allergy", "Medication", "Other"].includes(medical_type)) {
+    return res.status(400).json({ message: "Invalid medical_type" });
+  }
+  const query = `
+    UPDATE medical_records
+    SET child_id = ?, medical_date = ?, medical_type = ?, description = ?, notes = ?
+    WHERE id = ?
+  `;
+  db.query(query, [child_id, medical_date, medical_type, description, notes || null, id], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/medical-records/${id} PUT:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Medical record not found" });
+    }
+    res.json({ message: "Medical record updated" });
+  });
+});
+
+app.delete("/api/medical-records/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM medical_records WHERE id = ?", [id], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/medical-records/${id} DELETE:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Medical record not found" });
+    }
+    res.json({ message: "Medical record deleted successfully" });
+  });
+});
+
+// Education records endpoints
+app.get("/api/education-records", verifyToken, restrictTo("admin"), (req, res) => {
+  const query = `
+    SELECT er.id, er.child_id, er.academic_year, er.education_level, er.school, er.performance, er.notes, c.name as child_name
+    FROM education_records er
+    JOIN children c ON er.child_id = c.id
+    ORDER BY er.created_at DESC
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Database error in /api/education-records:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.get("/api/education-records/:childId", verifyToken, restrictTo("admin"), (req, res) => {
+  const { childId } = req.params;
+  const query = `
+    SELECT er.id, er.child_id, er.academic_year, er.education_level, er.school, er.performance, er.notes, c.name as child_name
+    FROM education_records er
+    JOIN children c ON er.child_id = c.id
+    WHERE er.child_id = ?
+    ORDER BY er.academic_year DESC
+  `;
+  db.query(query, [childId], (err, results) => {
+    if (err) {
+      console.error(`Database error in /api/education-records/${childId}:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.post("/api/education-records", verifyToken, restrictTo("admin"), (req, res) => {
+  const { child_id, academic_year, education_level, school, performance, notes } = req.body;
+  if (!child_id || !academic_year || !education_level || !school || !performance) {
+    console.error("Missing required fields in /api/education-records:", { child_id, academic_year, education_level, school, performance });
+    return res.status(400).json({ message: "Required fields missing: child_id, academic_year, education_level, school, performance" });
+  }
+  if (!["Preschool", "Primary", "Secondary", "High School", "Vocational", "University"].includes(education_level)) {
+    return res.status(400).json({ message: "Invalid education_level" });
+  }
+  if (!["Excellent", "Good", "Average", "Needs Improvement"].includes(performance)) {
+    return res.status(400).json({ message: "Invalid performance" });
+  }
+  const query = `
+    INSERT INTO education_records (child_id, academic_year, education_level, school, performance, notes)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `;
+  db.query(query, [child_id, academic_year, education_level, school, performance, notes || null], (err, result) => {
+    if (err) {
+      console.error("Database error in /api/education-records POST:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.status(201).json({ message: "Education record added", id: result.insertId });
+  });
+});
+
+app.put("/api/education-records/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  const { child_id, academic_year, education_level, school, performance, notes } = req.body;
+  if (!child_id || !academic_year || !education_level || !school || !performance) {
+    console.error(`Missing required fields in /api/education-records/${id} PUT:`, { child_id, academic_year, education_level, school, performance });
+    return res.status(400).json({ message: "Required fields missing: child_id, academic_year, education_level, school, performance" });
+  }
+  if (!["Preschool", "Primary", "Secondary", "High School", "Vocational", "University"].includes(education_level)) {
+    return res.status(400).json({ message: "Invalid education_level" });
+  }
+  if (!["Excellent", "Good", "Average", "Needs Improvement"].includes(performance)) {
+    return res.status(400).json({ message: "Invalid performance" });
+  }
+  const query = `
+    UPDATE education_records
+    SET child_id = ?, academic_year = ?, education_level = ?, school = ?, performance = ?, notes = ?
+    WHERE id = ?
+  `;
+  db.query(query, [child_id, academic_year, education_level, school, performance, notes || null, id], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/education-records/${id} PUT:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Education record not found" });
+    }
+    res.json({ message: "Education record updated" });
+  });
+});
+
+app.delete("/api/education-records/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM education_records WHERE id = ?", [id], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/education-records/${id} DELETE:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Education record not found" });
+    }
+    res.json({ message: "Education record deleted successfully" });
+  });
+});
+
+// Sponsorship records endpoints
+app.get("/api/sponsor-records", verifyToken, restrictTo("admin"), (req, res) => {
+  const query = `
+    SELECT sr.id, sr.child_id, sr.sponsor_type, sr.name, sr.contact, sr.start_date, sr.end_date, sr.notes, c.name as child_name
+    FROM sponsor_records sr
+    JOIN children c ON sr.child_id = c.id
+    ORDER BY sr.created_at DESC
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Database error in /api/sponsor-records:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.get("/api/sponsor-records/:childId", verifyToken, restrictTo("admin"), (req, res) => {
+  const { childId } = req.params;
+  const query = `
+    SELECT sr.id, sr.child_id, sr.sponsor_type, sr.name, sr.contact, sr.start_date, sr.end_date, sr.notes, c.name as child_name
+    FROM sponsor_records sr
+    JOIN children c ON sr.child_id = c.id
+    WHERE sr.child_id = ?
+    ORDER BY sr.start_date DESC
+  `;
+  db.query(query, [childId], (err, results) => {
+    if (err) {
+      console.error(`Database error in /api/sponsor-records/${childId}:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.post("/api/sponsor-records", verifyToken, restrictTo("admin"), (req, res) => {
+  const { child_id, sponsor_type, name, contact, start_date, end_date, notes } = req.body;
+  if (!child_id || !sponsor_type || !name || !contact) {
+    console.error("Missing required fields in /api/sponsor-records:", { child_id, sponsor_type, name, contact });
+    return res.status(400).json({ message: "Required fields missing: child_id, sponsor_type, name, contact" });
+  }
+  if (!["Sponsor", "Guardian", "Foster Parent"].includes(sponsor_type)) {
+    return res.status(400).json({ message: "Invalid sponsor_type" });
+  }
+  const query = `
+    INSERT INTO sponsor_records (child_id, sponsor_type, name, contact, start_date, end_date, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `;
+  db.query(query, [child_id, sponsor_type, name, contact, start_date || null, end_date || null, notes || null], (err, result) => {
+    if (err) {
+      console.error("Database error in /api/sponsor-records POST:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.status(201).json({ message: "Sponsor record added", id: result.insertId });
+  });
+});
+
+app.put("/api/sponsor-records/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  const { child_id, sponsor_type, name, contact, start_date, end_date, notes } = req.body;
+  if (!child_id || !sponsor_type || !name || !contact) {
+    console.error(`Missing required fields in /api/sponsor-records/${id} PUT:`, { child_id, sponsor_type, name, contact });
+    return res.status(400).json({ message: "Required fields missing: child_id, sponsor_type, name, contact" });
+  }
+  if (!["Sponsor", "Guardian", "Foster Parent"].includes(sponsor_type)) {
+    return res.status(400).json({ message: "Invalid sponsor_type" });
+  }
+  const query = `
+    UPDATE sponsor_records
+    SET child_id = ?, sponsor_type = ?, name = ?, contact = ?, start_date = ?, end_date = ?, notes = ?
+    WHERE id = ?
+  `;
+  db.query(query, [child_id, sponsor_type, name, contact, start_date || null, end_date || null, notes || null, id], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/sponsor-records/${id} PUT:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Sponsor record not found" });
+    }
+    res.json({ message: "Sponsor record updated" });
+  });
+});
+
+app.delete("/api/sponsor-records/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM sponsor_records WHERE id = ?", [id], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/sponsor-records/${id} DELETE:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Sponsor record not found" });
+    }
+    res.json({ message: "Sponsor record deleted successfully" });
+  });
+});
+
+
+
+
+
+
+app.get("/api/donations/recent", verifyToken, restrictTo("admin"), (req, res) => {
+  const query = `
+    SELECT d.id, d.donor_id, d.amount, d.donation_date, d.purpose, u.name as donor_name
+    FROM donations d
+    JOIN users u ON d.donor_id = u.id
+    WHERE d.donation_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    ORDER BY d.donation_date DESC
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Database error in /api/donations/recent:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.get("/api/donations", verifyToken, restrictTo("admin"), (req, res) => {
+  const query = `
+    SELECT d.id, d.donor_id , d.amount, d.donation_date, d.purpose, u.name as donor_name
+    FROM donations d
+    JOIN users u ON d.donor_id = u.id
+    ORDER BY d.donation_date DESC
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Database error in /api/donations:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.post("/api/donations", verifyToken, restrictTo("admin"), (req, res) => {
+  const { donor_id, amount, donation_date, purpose } = req.body;
+  if (!donor_id || !amount || !donation_date) {
+    console.error("Missing required fields in /api/donations:", { donor_id, amount, donation_date });
+    return res.status(400).json({ message: "Required fields missing: donor_id, amount, donation_date" });
+  }
+  if (isNaN(amount) || amount <= 0) {
+    return res.status(400).json({ message: "Invalid amount" });
+  }
+  db.query("SELECT id FROM users WHERE id = ? AND role = 'donor'", [donor_id], (err, results) => {
+    if (err) {
+      console.error("Database error verifying donor_id in /api/donations POST:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (results.length === 0) {
+      return res.status(400).json({ message: "Invalid donor_id: Donor not found" });
+    }
+    const query = "INSERT INTO donations (donor_id, amount, donation_date, purpose) VALUES (?, ?, ?, ?)";
+    db.query(query, [donor_id, amount, donation_date, purpose || null], (err, result) => {
+      if (err) {
+        console.error("Database error in /api/donations POST:", err.message);
+        return res.status(500).json({ message: "Database error", error: err.message });
+      }
+      res.status(201).json({ message: "Donation recorded", id: result.insertId });
+    });
+  });
+});
+
+app.put("/api/donations/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  const { donor_id, amount, donation_date, purpose } = req.body;
+  if (!donor_id || !amount || !donation_date) {
+    console.error(`Missing required fields in /api/donations/${id} PUT:`, { donor_id, amount, donation_date });
+    return res.status(400).json({ message: "Required fields missing: donor_id, amount, donation_date" });
+  }
+  if (isNaN(amount) || amount <= 0) {
+    return res.status(400).json({ message: "Invalid amount" });
+  }
+  db.query("SELECT id FROM users WHERE id = ? AND role = 'donor'", [donor_id], (err, results) => {
+    if (err) {
+      console.error(`Database error verifying donor_id in /api/donations/${id} PUT:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (results.length === 0) {
+      return res.status(400).json({ message: "Invalid donor_id: Donor not found" });
+    }
+    const query = "UPDATE donations SET donor_id = ?, amount = ?, donation_date = ?, purpose = ? WHERE id = ?";
+    db.query(query, [donor_id, amount, donation_date, purpose || null, id], (err, result) => {
+      if (err) {
+        console.error(`Database error in /api/donations/${id} PUT:`, err.message);
+        return res.status(500).json({ message: "Database error", error: err.message });
+      }
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "Donation not found" });
+      }
+      res.json({ message: "Donation updated" });
+    });
+  });
+});
+
+app.delete("/api/donations/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM donations WHERE id = ?", [id], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/donations/${id} DELETE:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Donation not found" });
+    }
+    db.query("DELETE FROM donation_complaints WHERE donation_id = ?", [id]);
+    res.json({ message: "Donation deleted successfully" });
+  });
+});
+
+
+
+app.post("/api/donations/complaints", verifyToken, restrictTo("donor", "user"), (req, res) => {
+  const { donation_id, description } = req.body;
+  if (!donation_id || !description) {
+    return res.status(400).json({ message: "Donation ID and description are required" });
+  }
+
+  const verifyDonationQuery = "SELECT id FROM donations WHERE id = ? AND donor_id = ?";
+  db.query(verifyDonationQuery, [parseInt(donation_id), req.user.id], (err, donationResults) => {
+    if (err) return res.status(500).json({ message: "Database error", error: err.message });
+    if (donationResults.length === 0) return res.status(404).json({ message: "Donation not found or not associated with this user" });
+
+    const checkComplaintQuery = "SELECT id FROM donation_complaints WHERE donation_id = ? AND user_id = ?";
+    db.query(checkComplaintQuery, [parseInt(donation_id), req.user.id], (err, complaintResults) => {
+      if (err) return res.status(500).json({ message: "Database error", error: err.message });
+      if (complaintResults.length > 0) return res.status(400).json({ message: "A complaint for this donation already exists" });
+
+      const query = "INSERT INTO donation_complaints (user_id, donation_id, description, status) VALUES (?, ?, ?, 'Pending')";
+      db.query(query, [req.user.id, parseInt(donation_id), description], (err, result) => {
+        if (err) {
+          console.error("Database error in /api/donations/complaints POST:", err.message);
+          return res.status(500).json({ message: "Database error", error: err.message });
+        }
+        res.status(201).json({ message: "Complaint submitted successfully", id: result.insertId });
+      });
+    });
+  });
+});
+
+app.get("/api/donations/complaints", verifyToken, restrictTo("admin"), (req, res) => {
+  const query = `
+    SELECT dc.id, dc.user_id as donor_id, dc.donation_id, dc.description, dc.status, dc.created_at,
+           u.name as donor_name, u.email as donor_email,
+           d.amount, d.donation_date
+    FROM donation_complaints dc
+    JOIN users u ON dc.user_id = u.id
+    JOIN donations d ON dc.donation_id = d.id
+    ORDER BY dc.created_at DESC
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Database error in /api/donations/complaints:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.put("/api/donations/complaints/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  if (!status || !["Pending", "Resolved", "Dismissed"].includes(status)) {
+    return res.status(400).json({ message: "Valid status is required (Pending, Resolved, Dismissed)" });
+  }
+
+  const query = "UPDATE donation_complaints SET status = ? WHERE id = ?";
+  db.query(query, [status, parseInt(id)], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/donations/complaints/${id} PUT:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Complaint not found" });
+    }
+    res.json({ message: "Donation complaint status updated" });
+  });
+});
+
+app.get("/api/donations/complaints/me", verifyToken, restrictTo("donor", "user"), (req, res) => {
+  const donorId = req.user.id;
+
+  const query = `
+    SELECT dc.id, dc.user_id AS donor_id, dc.donation_id, dc.description, dc.status, dc.created_at,
+           d.amount, d.donation_date
+    FROM donation_complaints dc
+    JOIN donations d ON dc.donation_id = d.id
+    WHERE dc.user_id = ?
+  `;
+
+  db.query(query, [donorId], (err, results) => {
+    if (err) return res.status(500).json({ error: "Database error" });
+    res.json(results);
+  });
+});
+
+
+// Attendance endpoints
+app.get("/api/attendance", verifyToken, restrictTo("admin"), (req, res) => {
+  const query = `
+    SELECT a.id, a.staff_id, a.date, a.status, u.name as staff_name
+    FROM attendance a
+    JOIN users u ON a.staff_id = u.id
+    WHERE u.role = 'staff'
+    ORDER BY a.date DESC
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Database error in /api/attendance:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.get("/api/attendance/staff/:staffId", verifyToken, restrictTo("staff", "admin"), (req, res) => {
+  const { staffId } = req.params;
+  if (req.user.role !== "admin" && req.user.id !== parseInt(staffId)) {
+    return res.status(403).json({ message: "Access denied: Can only view own attendance" });
+  }
+
+  const query = `
+    SELECT id, staff_id, date, status
+    FROM attendance
+    WHERE staff_id = ? AND EXISTS (SELECT 1 FROM users WHERE id = ? AND role = 'staff')
+    ORDER BY date DESC
+  `;
+  db.query(query, [staffId, staffId], (err, results) => {
+    if (err) {
+      console.error(`Database error in /api/attendance/staff/${staffId}:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.post("/api/attendance", verifyToken, restrictTo("admin"), (req, res) => {
+  const { staff_id, date, status } = req.body;
+  if (!staff_id || !date || !status) {
+    console.error("Missing required fields in /api/attendance:", { staff_id, date, status });
+    return res.status(400).json({ message: "Required fields missing: staff_id, date, status" });
+  }
+
+  if (!["Present", "Absent"].includes(status)) {
+    return res.status(400).json({ message: "Invalid status. Must be 'Present' or 'Absent'" });
+  }
+
+  db.query("SELECT id FROM users WHERE id = ? AND role = 'staff'", [staff_id], (err, results) => {
+    if (err) {
+      console.error("Database error verifying staff_id in /api/attendance POST:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (results.length === 0) {
+      return res.status(400).json({ message: "Invalid staff_id: Staff member not found" });
+    }
+
+    const query = "INSERT INTO attendance (staff_id, date, status) VALUES (?, ?, ?)";
+    db.query(query, [parseInt(staff_id), date, status], (err, result) => {
+      if (err) {
+        console.error("Database error in /api/attendance POST:", err.message);
+        return res.status(500).json({ message: "Database error", error: err.message });
+      }
+      res.status(201).json({ message: "Attendance recorded", id: result.insertId });
+    });
+  });
+});
+
+app.delete("/api/attendance/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM attendance WHERE id = ?", [parseInt(id)], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/attendance/${id} DELETE:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Attendance record not found" });
+    }
+    db.query("DELETE FROM staff_attendance_complaints WHERE attendance_id = ?", [parseInt(id)]);
+    res.json({ message: "Attendance record deleted" });
+  });
+});
+
+// Staff attendance complaints endpoints
+app.get("/api/staff/attendance/complaints", verifyToken, restrictTo("admin"), (req, res) => {
+ 
+  const query = `
+    SELECT sac.id,sac.a_staff_id, sac.staff_id, sac.attendance_id, sac.description, sac.status, sac.created_at,
+      u.name as staff_name, u.email as staff_email,
+      a.date as attendance_date, a.status as attendance_status
+    FROM staff_attendance_complaints sac
+    JOIN users u ON sac.a_staff_id = u.id
+    JOIN attendance a ON sac.attendance_id = a.id
+    WHERE u.role = 'staff'
+    ORDER BY sac.created_at DESC
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Database error in /api/staff/attendance/complaints:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+
+
+
+app.put("/api/staff/attendance/complaints/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  if (!status || !["Pending", "Resolved", "Dismissed"].includes(status)) {
+    console.error(`Invalid status in /api/staff/attendance/complaints/${id} PUT:`, { status });
+    return res.status(400).json({ message: "Valid status is required (Pending, Resolved, Dismissed)" });
+  }
+
+  const query = "UPDATE staff_attendance_complaints SET status = ? WHERE id = ?";
+  db.query(query, [status, parseInt(id)], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/staff/attendance/complaints/${id} PUT:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Attendance complaint not found" });
+    }
+    res.json({ message: "Attendance complaint status updated" });
+  });
+});
+
+// GET /api/staff/attendance/complaints/me - Get current staff's complaints
+ app.get("/api/staff/attendance/complaints/me", verifyToken, restrictTo("staff"), (req, res) => {
+  console.log("welcome to complaints");
+  console.log(req.user.id);
+
+  const query = `
+    SELECT 
+      sac.id, sac.attendance_id, sac.description, sac.status, sac.created_at,
+      a.date as attendance_date, a.status as attendance_status
+    FROM staff_attendance_complaints sac
+    JOIN attendance a ON sac.attendance_id = a.id
+    WHERE sac.a_staff_id = ?
+    ORDER BY sac.created_at DESC
+  `;
+  db.query(query, [req.user.id], (err, results) => {
+    if (err) {
+      console.error("Database error in /api/staff/attendance/complaints/me:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+
+app.delete("/api/staff/attendance/complaints/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM staff_attendance_complaints WHERE id = ?", [parseInt(id)], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/staff/attendance/complaints/${id} DELETE:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Attendance complaint not found" });
+    }
+    res.json({ message: "Attendance complaint deleted successfully" });
+  });
+});
+
+// Password reset endpoints
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
+
+app.post("/api/reset-password/request", (req, res) => {
+  const { email } = req.body;
+  console.log("Password reset request for email backend:", email);
+
+  if (!email) {
+    console.error("Missing email in /api/reset-password/request");
+    return res.status(400).json({ message: "Email is required" });
+  }
+
+  // Step 1: Check if email exists in DB
+  const query = "SELECT id FROM users WHERE email = ?";
+  db.query(query, [email], (err, results) => {
+    if (err) {
+      console.error("Database error in /api/reset-password/request:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (results.length === 0) {
+      console.error(`No user found with email ${email}`);
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Step 2: Generate 6-digit token (OTP)
+    const token = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit code
+    const expiresAt = new Date(Date.now() + 3600000); // 1 hour expiry
+
+    // Step 3: Send the email with the token
+    const transporter = nodemailer.createTransport({
+      service: "gmail", // or use SMTP provider
+      auth: {
+        user: "va12ms34i@gmail.com",
+        pass: "gqph xoja nojk xoio",
+      },
+    });
+
+    const mailOptions = {
+      from: "va12ms34i@gmail.com",
+      to: email,
+      subject: "Password Reset Request",
+      text: `Your password reset code is: ${token}\nThis code will expire in 1 hour.`,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error("Error sending email:", error.message);
+        return res.status(500).json({ message: "Failed to send email", error: error.message });
+      }
+
+      console.log(`Password reset email sent to ${email}: ${token}`);
+
+      // Step 4: Insert token into DB
+      const insertTokenQuery =
+        "INSERT INTO password_reset_tokens (email, token, expires_at) VALUES (?, ?, ?)";
+      db.query(insertTokenQuery, [email, token, expiresAt], (err, result) => {
+        if (err) {
+          console.error(
+            "Database error in /api/reset-password/request (token insertion):",
+            err.message
+          );
+          return res
+            .status(500)
+            .json({ message: "Database error", error: err.message });
+        }
+
+        res
+          .status(200)
+          .json({ message: "Password reset code sent to your email." });
+      });
+    });
+  });
+});
+
+
+app.post("/api/reset-password/verify", (req, res) => {
+  const { otp } = req.body;
+
+  const query = "SELECT email FROM password_reset_tokens WHERE token = ? AND expires_at > NOW()";
+  db.query(query, [otp], (err, result) => {
+    if (err) return res.status(500).json({ message: "Database error" });
+    if (result.length === 0) return res.status(400).json({ message: "Invalid or expired OTP" });
+
+    res.json({ message: "OTP verified", email: result[0].email });
+  });
+});
+
+// Update Password
+app.post("/api/reset-password/update", async (req, res) => {
+  const { otp, newPassword } = req.body;
+
+  const query = "SELECT email FROM password_reset_tokens WHERE token = ?";
+  db.query(query, [otp], async (err, result) => {
+    if (err) return res.status(500).json({ message: "Database error" });
+    if (result.length === 0) return res.status(400).json({ message: "Invalid OTP" });
+
+    const email = result[0].email;
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    db.query("UPDATE users SET password = ? WHERE email = ?", [hashedPassword, email], (err) => {
+      if (err) return res.status(500).json({ message: "Error updating password" });
+
+      // Remove OTP after use
+      db.query("DELETE FROM password_reset_tokens WHERE email = ?", [email]);
+
+      res.json({ message: "Password updated successfully!" });
+    });
+  });
+});
+
+
+// Inventory Management Endpoints
+app.get("/api/inventory", verifyToken, restrictTo("admin"), (req, res) => {
+  const { category, item } = req.query;
+  let query = "SELECT id, category, item, quantity, min_stock, supplier, notes, last_updated FROM inventory";
+  const queryParams = [];
+
+  if (category || item) {
+    query += " WHERE";
+    if (category) {
+      query += " category = ?";
+      queryParams.push(category);
+    }
+    if (item) {
+      query += category ? " AND" : "";
+      query += " item LIKE ?";
+      queryParams.push(`%${item}%`);
+    }
+  }
+
+  query += " ORDER BY last_updated DESC";
+
+  db.query(query, queryParams, (err, results) => {
+    if (err) {
+      console.error("Database error in /api/inventory:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.get("/api/inventory/low-stock", verifyToken, restrictTo("admin"), (req, res) => {
+  const query = "SELECT id, item, category, quantity, min_stock FROM inventory WHERE quantity <= min_stock ORDER BY quantity ASC";
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Database error in /api/inventory/low-stock:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+app.post("/api/inventory", verifyToken, restrictTo("admin"), (req, res) => {
+  const { category, item, quantity, min_stock, supplier, notes } = req.body;
+  if (!category || !item || !quantity || !min_stock) {
+    console.error("Missing required fields in /api/inventory:", { category, item, quantity, min_stock });
+    return res.status(400).json({ message: "Required fields missing: category, item, quantity, min_stock" });
+  }
+  if (!["Food", "Clothing", "School", "Medical", "Other"].includes(category)) {
+    return res.status(400).json({ message: "Invalid category" });
+  }
+  if (isNaN(quantity) || quantity < 0 || isNaN(min_stock) || min_stock < 0) {
+    return res.status(400).json({ message: "Invalid quantity or min_stock" });
+  }
+
+  const query = `
+    INSERT INTO inventory (category, item, quantity, min_stock, supplier, notes)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `;
+  db.query(query, [category, item, parseInt(quantity), parseInt(min_stock), supplier || null, notes || null], (err, result) => {
+    if (err) {
+      console.error("Database error in /api/inventory POST:", err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    res.status(201).json({ message: "Inventory item added", id: result.insertId });
+  });
+});
+
+app.put("/api/inventory/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  const { category, item, quantity, min_stock, supplier, notes } = req.body;
+  if (!category || !item || !quantity || !min_stock) {
+    console.error(`Missing required fields in /api/inventory/${id} PUT:`, { category, item, quantity, min_stock });
+    return res.status(400).json({ message: "Required fields missing: category, item, quantity, min_stock" });
+  }
+  if (!["Food", "Clothing", "School", "Medical", "Other"].includes(category)) {
+    return res.status(400).json({ message: "Invalid category" });
+  }
+  if (isNaN(quantity) || quantity < 0 || isNaN(min_stock) || min_stock < 0) {
+    return res.status(400).json({ message: "Invalid quantity or min_stock" });
+  }
+
+  const query = `
+    UPDATE inventory
+    SET category = ?, item = ?, quantity = ?, min_stock = ?, supplier = ?, notes = ?, last_updated = NOW()
+    WHERE id = ?
+  `;
+  db.query(query, [category, item, parseInt(quantity), parseInt(min_stock), supplier || null, notes || null, parseInt(id)], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/inventory/${id} PUT:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Inventory item not found" });
+    }
+    res.json({ message: "Inventory item updated" });
+  });
+});
+
+app.delete("/api/inventory/:id", verifyToken, restrictTo("admin"), (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM inventory WHERE id = ?", [parseInt(id)], (err, result) => {
+    if (err) {
+      console.error(`Database error in /api/inventory/${id} DELETE:`, err.message);
+      return res.status(500).json({ message: "Database error", error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Inventory item not found" });
+    }
+    res.json({ message: "Inventory item deleted successfully" });
+  });
+});
+
+// Scheduled task to clean up expired password reset tokens
+schedule("0 0 * * *", () => {
+  console.log("Running cleanup for expired password reset tokens...");
+  const query = "DELETE FROM password_reset_tokens WHERE expires_at < NOW()";
+  db.query(query, (err) => {
+    if (err) {
+      console.error("Error cleaning up expired tokens:", err.message);
+    } else {
+      console.log("Expired password reset tokens cleaned up successfully");
+    }
+  });
+});
+
+// Global error handling middleware
+app.use((err, req, res, next) => {
+  console.error("Unexpected error:", err.message, err.stack);
+  res.status(500).json({ message: "Internal server error", error: err.message });
+});
+
+// Handle 404 for undefined routes
+app.use((req, res) => {
+  console.error(`Route not found: ${req.method} ${req.url}`);
+  res.status(404).json({ message: "Route not found" });
+});
+
+// Start the server
+const PORT = process.env.PORT || 5001;
+
+
+// Handle process termination
+process.on("SIGTERM", () => {
+  console.log("Received SIGTERM. Closing database connection and shutting down...");
+ db.end((err) => {
+    if (err) {
+      console.error("Error closing database connection:", err.message);
+    } else {
+      console.log("Database connection closed.");
+    }
+    process.exit(0);
+  });
+});
+
+// Handle uncaught exceptions
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err.message, err.stack);
+  db.end(() => {
+    process.exit(1);
+  });
+});
+
+// Handle unhandled promise rejections
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+  db.end(() => {
+    process.exit(1);
+  });
+});
+
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});

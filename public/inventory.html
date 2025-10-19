@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Management</title>
+    <!-- Include jsPDF library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .menu {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 15px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .btn-pdf {
+            background: #e74c3c;
+        }
+        .btn-pdf:hover {
+            background: #c0392b;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .low-stock {
+            background-color: #ffecec;
+        }
+        .hidden {
+            display: none;
+        }
+        .active {
+            background: #2ecc71;
+        }
+        .pdf-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏠 Inventory Management</h1>
+        <div style="text-align: right; margin-bottom: 15px;">
+            <button id="btnDashboard" style="background: #7f8c8d;">← Back to Dashboard</button>
+        </div>
+        
+        <div class="menu">
+            <button id="btnAddItem" class="active">➕ Add Item</button>
+            <button id="btnViewItems">📋 View Items</button>
+            <button id="btnLowStock">⚠️ Low Stock</button>
+            <button id="btnUpdateStock">🔄 Update Stock</button>
+        </div>
+
+        <!-- Add Item Form -->
+        <div id="addItemForm">
+            <h2>Add New Item</h2>
+            <form id="itemForm">
+                <div class="form-group">
+                    <label for="category">Category</label>
+                    <select id="category" required>
+                        <option value="">Select...</option>
+                        <option value="Food">Food</option>
+                        <option value="Clothing">Clothing</option>
+                        <option value="School">School Supplies</option>
+                        <option value="Medical">Medical/Hygiene</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="itemName">Item Name</label>
+                    <input type="text" id="itemName" required>
+                </div>
+                <div class="form-group">
+                    <label for="quantity">Quantity</label>
+                    <input type="text" id="quantity" required>
+                </div>
+                <div class="form-group">
+                    <label for="minStock">Minimum Stock Level</label>
+                    <input type="text" id="minStock" required>
+                </div>
+                <div class="form-group">
+                    <label for="supplier">Supplier (Optional)</label>
+                    <input type="text" id="supplier">
+                </div>
+                <div class="form-group">
+                    <label for="notes">Notes (Optional)</label>
+                    <input type="text" id="notes">
+                </div>
+                <button type="submit">Save Item</button>
+            </form>
+        </div>
+
+        <!-- View Items Section -->
+        <div id="viewItems" class="hidden">
+            <h2>Inventory Items</h2>
+            <div class="form-group">
+                <label for="filterCategory">Filter by Category:</label>
+                <select id="filterCategory">
+                    <option value="">All Categories</option>
+                    <option value="Food">Food</option>
+                    <option value="Clothing">Clothing</option>
+                    <option value="School">School Supplies</option>
+                    <option value="Medical">Medical/Hygiene</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <table id="inventoryTable">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Item</th>
+                        <th>Quantity</th>
+                        <th>Min Stock</th>
+                        <th>Supplier</th>
+                        <th>Last Updated</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody id="inventoryBody">
+                    <!-- Items will be loaded here -->
+                </tbody>
+            </table>
+            <div class="pdf-section">
+                <button id="btnDownloadPDF" class="btn-pdf">📄 Download PDF Report</button>
+            </div>
+        </div>
+
+        <!-- Low Stock Section -->
+        <div id="lowStock" class="hidden">
+            <h2>⚠️ Low-Stock Items</h2>
+            <table id="lowStockTable">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Category</th>
+                        <th>Current Qty</th>
+                        <th>Min Qty</th>
+                        <th>Urgency</th>
+                    </tr>
+                </thead>
+                <tbody id="lowStockBody">
+                    <!-- Low-stock items will be loaded here -->
+                </tbody>
+            </table>
+            <div class="pdf-section">
+                <button id="btnDownloadLowStockPDF" class="btn-pdf">📄 Download Low Stock PDF</button>
+            </div>
+        </div>
+
+        <!-- Update Stock Section -->
+        <div id="updateStock" class="hidden">
+            <h2>Update Item Quantity</h2>
+            <div class="form-group">
+                <label for="updateItemName">Item Name</label>
+                <input type="text" id="updateItemName" placeholder="Enter item name">
+            </div>
+            <div class="form-group">
+                <label for="updateQuantity">New Quantity</label>
+                <input type="text" id="updateQuantity">
+            </div>
+            <button id="btnUpdateQty">Update Quantity</button>
+            <div id="updateStatus" style="margin-top: 10px;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize jsPDF
+        const { jsPDF } = window.jspdf;
+
+        // DOM Elements
+        const sections = {
+            addItem: document.getElementById("addItemForm"),
+            viewItems: document.getElementById("viewItems"),
+            lowStock: document.getElementById("lowStock"),
+            updateStock: document.getElementById("updateStock")
+        };
+        
+        const buttons = {
+            addItem: document.getElementById("btnAddItem"),
+            viewItems: document.getElementById("btnViewItems"),
+            lowStock: document.getElementById("btnLowStock"),
+            updateStock: document.getElementById("btnUpdateStock"),
+            dashboard: document.getElementById("btnDashboard")
+        };
+
+        // Function to get JWT token (assuming it's stored in localStorage after login)
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+
+        // Switch between sections
+        function showSection(section) {
+            Object.values(sections).forEach(sec => sec.classList.add('hidden'));
+            sections[section].classList.remove('hidden');
+            
+            Object.values(buttons).forEach(btn => btn.classList.remove('active'));
+            buttons[section].classList.add('active');
+            
+            if (section === 'viewItems') loadInventoryTable();
+            if (section === 'lowStock') loadLowStockTable();
+        }
+
+        // Event listeners for menu buttons
+        buttons.addItem.addEventListener('click', () => showSection('addItem'));
+        buttons.viewItems.addEventListener('click', () => showSection('viewItems'));
+        buttons.lowStock.addEventListener('click', () => showSection('lowStock'));
+        buttons.updateStock.addEventListener('click', () => showSection('updateStock'));
+        buttons.dashboard.addEventListener('click', function() {
+            window.location.href = "dashboard.html";
+        });
+
+        // Add new item
+        document.getElementById("itemForm").addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const newItem = {
+                category: document.getElementById("category").value,
+                item: document.getElementById("itemName").value,
+                quantity: parseInt(document.getElementById("quantity").value),
+                min_stock: parseInt(document.getElementById("minStock").value),
+                supplier: document.getElementById("supplier").value,
+                notes: document.getElementById("notes").value
+            };
+            
+            try {
+                const response = await fetch('/api/inventory', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getToken()}`
+                    },
+                    body: JSON.stringify(newItem)
+                });
+                
+                const result = await response.json();
+                if (response.ok) {
+                    alert(`✅ "${newItem.item}" added to inventory!`);
+                    this.reset();
+                } else {
+                    alert(`❌ Error: ${result.message}`);
+                }
+            } catch (err) {
+                alert('❌ Failed to add item. Please try again.');
+                console.error(err);
+            }
+        });
+
+        // Load inventory table
+        async function loadInventoryTable() {
+            const filter = document.getElementById("filterCategory").value;
+            const tbody = document.getElementById("inventoryBody");
+            tbody.innerHTML = '';
+            
+            try {
+                const url = filter ? `/api/inventory?category=${encodeURIComponent(filter)}` : '/api/inventory';
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const inventory = await response.json();
+                
+                inventory.forEach(item => {
+                    const row = document.createElement('tr');
+                    if (item.quantity <= item.min_stock) row.classList.add('low-stock');
+                    
+                    row.innerHTML = `
+                        <td>${item.category}</td>
+                        <td>${item.item}</td>
+                        <td>${item.quantity}</td>
+                        <td>${item.min_stock}</td>
+                        <td>${item.supplier || '-'}</td>
+                        <td>${item.last_updated}</td>
+                        <td>${item.notes || '-'}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (err) {
+                console.error(err);
+                alert('❌ Failed to load inventory. Please try again.');
+            }
+        }
+
+        // Load low-stock items
+        async function loadLowStockTable() {
+            const tbody = document.getElementById("lowStockBody");
+            tbody.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/inventory/low-stock', {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const inventory = await response.json();
+                
+                inventory.forEach(item => {
+                    const row = document.createElement('tr');
+                    const urgency = item.quantity === 0 ? '🚨 Out of Stock' : 
+                                  item.quantity < (item.min_stock / 2) ? '⚠️ Critical' : '⚠️ Low';
+                    
+                    row.innerHTML = `
+                        <td>${item.item}</td>
+                        <td>${item.category}</td>
+                        <td>${item.quantity}</td>
+                        <td>${item.min_stock}</td>
+                        <td>${urgency}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (err) {
+                console.error(err);
+                alert('❌ Failed to load low-stock items. Please try again.');
+            }
+        }
+
+        // Update item quantity
+        document.getElementById("btnUpdateQty").addEventListener('click', async function() {
+            const itemName = document.getElementById("updateItemName").value.trim();
+            const newQty = parseInt(document.getElementById("updateQuantity").value);
+            const status = document.getElementById("updateStatus");
+            
+            if (!itemName || isNaN(newQty)) {
+                status.innerHTML = '❌ Please enter valid item name and quantity!';
+                status.style.color = 'red';
+                return;
+            }
+            
+            try {
+                // First, find the item by name to get its ID
+                const response = await fetch(`/api/inventory?item=${encodeURIComponent(itemName)}`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const items = await response.json();
+                
+                if (items.length === 0) {
+                    status.innerHTML = `❌ Item "${itemName}" not found!`;
+                    status.style.color = 'red';
+                    return;
+                }
+                
+                const item = items[0]; // Assume first match
+                const updateResponse = await fetch(`/api/inventory/${item.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getToken()}`
+                    },
+                    body: JSON.stringify({ quantity: newQty })
+                });
+                
+                const result = await updateResponse.json();
+                if (updateResponse.ok) {
+                    status.innerHTML = `✅ Updated "${itemName}" quantity to ${newQty}.`;
+                    status.style.color = 'green';
+                    document.getElementById("updateItemName").value = '';
+                    document.getElementById("updateQuantity").value = '';
+                    loadInventoryTable();
+                    loadLowStockTable();
+                } else {
+                    status.innerHTML = `❌ Error: ${result.message}`;
+                    status.style.color = 'red';
+                }
+            } catch (err) {
+                status.innerHTML = '❌ Failed to update quantity. Please try again.';
+                status.style.color = 'red';
+                console.error(err);
+            }
+        });
+
+        // Filter inventory table
+        document.getElementById("filterCategory").addEventListener('change', loadInventoryTable);
+
+        // Generate and download PDF report
+        document.getElementById("btnDownloadPDF").addEventListener('click', generatePDFReport);
+        document.getElementById("btnDownloadLowStockPDF").addEventListener('click', generateLowStockPDFReport);
+
+        async function generatePDFReport() {
+            const filter = document.getElementById("filterCategory").value;
+            
+            try {
+                const url = filter ? `/api/inventory?category=${encodeURIComponent(filter)}` : '/api/inventory';
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const inventory = await response.json();
+                
+                if (inventory.length === 0) {
+                    alert("No items to generate report!");
+                    return;
+                }
+                
+                // Create a new PDF document
+                const doc = new jsPDF();
+                
+                // Add title
+                doc.setFontSize(18);
+                doc.text('Orphanage Inventory Report', 105, 15, { align: 'center' });
+                
+                // Add date
+                doc.setFontSize(12);
+                doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 105, 22, { align: 'center' });
+                
+                // Add filter info if applied
+                if (filter) {
+                    doc.text(`Filter: ${filter}`, 105, 29, { align: 'center' });
+                }
+                
+                // Prepare data for the table
+                const tableData = inventory.map(item => [
+                    item.category,
+                    item.item,
+                    item.quantity,
+                    item.min_stock,
+                    item.supplier || '-',
+                    item.last_updated,
+                    item.notes || '-'
+                ]);
+                
+                // Add table to PDF
+                doc.autoTable({
+                    head: [['Category', 'Item', 'Quantity', 'Min Stock', 'Supplier', 'Last Updated', 'Notes']],
+                    body: tableData,
+                    startY: 35,
+                    styles: {
+                        fontSize: 10,
+                        cellPadding: 3,
+                        overflow: 'linebreak'
+                    },
+                    headStyles: {
+                        fillColor: [52, 152, 219],
+                        textColor: 255,
+                        fontStyle: 'bold'
+                    },
+                    alternateRowStyles: {
+                        fillColor: [240, 240, 240]
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 25 },
+                        1: { cellWidth: 30 },
+                        2: { cellWidth: 20 },
+                        3: { cellWidth: 20 },
+                        4: { cellWidth: 25 },
+                        5: { cellWidth: 25 },
+                        6: { cellWidth: 'auto' }
+                    }
+                });
+                
+                // Save the PDF
+                doc.save(`Inventory_Report_${new Date().toISOString().slice(0,10)}.pdf`);
+            } catch (err) {
+                console.error(err);
+                alert('❌ Failed to generate PDF report. Please try again.');
+            }
+        }
+        
+        async function generateLowStockPDFReport() {
+            try {
+                const response = await fetch('/api/inventory/low-stock', {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const lowStockItems = await response.json();
+                
+                if (lowStockItems.length === 0) {
+                    alert("No low-stock items to generate report!");
+                    return;
+                }
+                
+                // Create a new PDF document
+                const doc = new jsPDF();
+                
+                // Add title
+                doc.setFontSize(18);
+                doc.text('Low Stock Inventory Report', 105, 15, { align: 'center' });
+                
+                // Add date
+                doc.setFontSize(12);
+                doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 105, 22, { align: 'center' });
+                
+                // Prepare data for the table
+                const tableData = lowStockItems.map(item => {
+                    const urgency = item.quantity === 0 ? 'Out of Stock' : 
+                                  item.quantity < (item.min_stock / 2) ? 'Critical' : 'Low';
+                    return [
+                        item.item,
+                        item.category,
+                        item.quantity,
+                        item.min_stock,
+                        urgency
+                    ];
+                });
+                
+                // Add table to PDF
+                doc.autoTable({
+                    head: [['Item', 'Category', 'Current Qty', 'Min Qty', 'Urgency']],
+                    body: tableData,
+                    startY: 35,
+                    styles: {
+                        fontSize: 10,
+                        cellPadding: 3,
+                        overflow: 'linebreak'
+                    },
+                    headStyles: {
+                        fillColor: [231, 76, 60],
+                        textColor: 255,
+                        fontStyle: 'bold'
+                    },
+                    alternateRowStyles: {
+                        fillColor: [255, 236, 236]
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 40 },
+                        1: { cellWidth: 30 },
+                        2: { cellWidth: 25 },
+                        3: { cellWidth: 25 },
+                        4: { cellWidth: 30 }
+                    },
+                    didDrawCell: (data) => {
+                        if (data.section === 'body' && data.column.index === 4) {
+                            const cellValue = data.cell.raw;
+                            if (cellValue === 'Out of Stock') {
+                                data.cell.styles.textColor = [231, 76, 60]; // Red
+                            } else if (cellValue === 'Critical') {
+                                data.cell.styles.textColor = [230, 126, 34]; // Orange
+                            }
+                        }
+                    }
+                });
+                
+                // Add summary
+                const outOfStock = lowStockItems.filter(item => item.quantity === 0).length;
+                const critical = lowStockItems.filter(item => item.quantity < (item.min_stock / 2) && item.quantity > 0).length;
+                const low = lowStockItems.filter(item => item.quantity <= item.min_stock && item.quantity >= (item.min_stock / 2)).length;
+                
+                const lastY = doc.lastAutoTable.finalY + 10;
+                doc.setFontSize(12);
+                doc.text('Summary:', 14, lastY);
+                doc.text(`- Out of Stock: ${outOfStock} items`, 20, lastY + 8);
+                doc.text(`- Critical: ${critical} items`, 20, lastY + 16);
+                doc.text(`- Low: ${low} items`, 20, lastY + 24);
+                
+                // Save the PDF
+                doc.save(`Low_Stock_Report_${new Date().toISOString().slice(0,10)}.pdf`);
+            } catch (err) {
+                console.error(err);
+                alert('❌ Failed to generate low-stock PDF report. Please try again.');
+            }
+        }
+
+        // Initialize
+        showSection('addItem');
+    </script>
+</body>
+</html>

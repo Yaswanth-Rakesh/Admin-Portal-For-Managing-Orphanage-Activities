@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Orphanage Authentication</title>
+  <style>
+    body {
+      background: #eef2f3;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .form-container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      width: 320px;
+      text-align: center;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 8px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    input, select {
+      border: 1px solid #ccc;
+    }
+    select:focus, input:focus {
+      border-color: #2e86de;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(46, 134, 222, 0.2);
+    }
+    button {
+      background: #2e86de;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1b4f72;
+    }
+    .message {
+      min-height: 20px;
+      font-size: 14px;
+      margin-top: 5px;
+    }
+    .error-message {
+      color: #e74c3c;
+    }
+    .success-message {
+      color: #27ae60;
+    }
+    .form-section {
+      display: none;
+    }
+    .active-form {
+      display: block;
+    }
+    .form-footer {
+      margin-top: 10px;
+    }
+    a {
+      font-size: 14px;
+      color: #2e86de;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .job-title-field {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="form-container">
+    <div id="loginForm" class="form-section active-form">
+      <h2>Smart Orphanage-Login</h2>
+      <form id="loginFormElement">
+        <select id="loginRole" required>
+          <option value="" disabled selected>Select Role</option>
+          <option value="admin">Admin</option>
+          <option value="staff">Staff</option>
+          <option value="donor">Donor</option>
+        </select>
+        <input type="text" id="loginJobTitle" class="job-title-field" placeholder="Job Title" />
+        <input type="email" id="loginEmail" placeholder="Email" required />
+        <input type="password" id="loginPassword" placeholder="Password" required />
+        <button type="submit">Login</button>
+        <div id="loginMessage" class="message"></div>
+      </form>
+      <div class="form-footer">
+        <a href="#" id="showRegister">Register</a> |
+        <a href="#" id="showForgot">Forgot Password?</a>
+      </div>
+    </div>
+
+    <div id="registerForm" class="form-section">
+  <h2>Smart Orphanage-Register</h2>
+  <form id="registerFormElement">
+    <select id="registerRole" required>
+      <option value="" disabled selected>Select Role</option>
+      <option value="admin">Admin</option>
+      <option value="staff">Staff</option>
+      <option value="donor">Donor</option>
+    </select>
+    <input type="text" id="registerJobTitle" class="job-title-field" placeholder="Job Title" />
+    <input type="text" id="registerName" placeholder="Full Name" required />
+    <input type="email" id="registerEmail" placeholder="Email" required />
+    <input type="text" id="registerPhone" placeholder="Phone Number" /> <!-- Added phone input -->
+    <input type="password" id="registerPassword" placeholder="Password" required />
+    <input type="password" id="registerConfirmPassword" placeholder="Confirm Password" required />
+    <button type="submit">Register</button>
+    <div id="registerMessage" class="message"></div>
+  </form>
+   <div class="form-footer"><a href="#" id="showLogin">Back to Login</a></div>
+   </div> 
+
+    <div id="forgotForm" class="form-section">
+      <h2>Reset Password</h2>
+      <form id="forgotFormElement">
+        <input type="email" id="forgotEmail" placeholder="Email" required />
+        <button type="submit">Send Link</button>
+        <div id="forgotMessage" class="message"></div>
+      </form>
+      <div class="form-footer"><a href="#" id="showLoginFromForgot">Back to Login</a></div>
+    </div>
+  </div>
+
+  <script>
+    const loginForm = document.getElementById("loginForm");
+    const registerForm = document.getElementById("registerForm");
+    const forgotForm = document.getElementById("forgotForm");
+    const loginRole = document.getElementById("loginRole");
+    const registerRole = document.getElementById("registerRole");
+    const loginJobTitle = document.getElementById("loginJobTitle");
+    const registerJobTitle = document.getElementById("registerJobTitle");
+
+    document.getElementById("showRegister").onclick = () => showForm('register');
+    document.getElementById("showLogin").onclick = () => showForm('login');
+    document.getElementById("showForgot").onclick = () => showForm('forgot');
+    document.getElementById("showLoginFromForgot").onclick = () => showForm('login');
+
+    function showForm(name) {
+      loginForm.classList.remove('active-form');
+      registerForm.classList.remove('active-form');
+      forgotForm.classList.remove('active-form');
+      if (name === 'login') loginForm.classList.add('active-form');
+      if (name === 'register') registerForm.classList.add('active-form');
+      if (name === 'forgot') forgotForm.classList.add('active-form');
+    }
+
+    loginRole.addEventListener('change', () => {
+      loginJobTitle.style.display = loginRole.value === 'staff' ? 'block' : 'none';
+      loginJobTitle.required = loginRole.value === 'staff';
+    });
+
+    registerRole.addEventListener('change', () => {
+      registerJobTitle.style.display = registerRole.value === 'staff' ? 'block' : 'none';
+      registerJobTitle.required = registerRole.value === 'staff';
+    });
+
+    document.getElementById("loginFormElement").onsubmit = async (e) => {
+      e.preventDefault();
+      const role = loginRole.value;
+      const email = document.getElementById("loginEmail").value.trim();
+      const password = document.getElementById("loginPassword").value;
+      const jobTitle = loginJobTitle.value.trim();
+      const message = document.getElementById("loginMessage");
+
+      if (!role) {
+        message.textContent = "Please select a role";
+        message.className = "message error-message";
+        return;
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        message.textContent = "Please enter a valid email address";
+        message.className = "message error-message";
+        return;
+      }
+
+      if (password.length < 6) {
+        message.textContent = "Password must be at least 6 characters long";
+        message.className = "message error-message";
+        return;
+      }
+
+      if (role === 'staff' && !jobTitle) {
+        message.textContent = "Please enter a job title";
+        message.className = "message error-message";
+        return;
+      }
+
+      const endpoints = {
+        admin: "http://localhost:5001/api/admin/login",
+        staff: "http://localhost:5001/api/staff/login",
+        donor: "http://localhost:5001/api/donor/login"
+      };
+
+      const redirectUrls = {
+        admin: "dashboard.html",
+        staff: "staff_dashboard.html",
+        donor: "donorDashboard.html"
+      };
+
+      try {
+        const payload = role === 'staff' ? { email, password, jobTitle } : { email, password };
+        const res = await fetch(endpoints[role], {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        console.log(`${role} login response:`, data);
+
+        if (res.ok) {
+          localStorage.setItem("token", data.token);
+          console.log('Token stored:', data.token.substring(0, 20) + '...');
+          window.location.href = redirectUrls[role];
+        } else {
+          message.textContent = data.message || "Login failed. Please check your credentials.";
+          message.className = "message error-message";
+        }
+      } catch (err) {
+        console.error(`${role} login fetch error:`, err);
+        message.textContent = "Server error. Please try again later.";
+        message.className = "message error-message";
+      }
+    };
+
+    
+    document.getElementById("registerFormElement").onsubmit = async (e) => {
+  e.preventDefault();
+  const role = registerRole.value;
+  const name = document.getElementById("registerName").value.trim();
+  const email = document.getElementById("registerEmail").value.trim();
+  const phone = document.getElementById("registerPhone").value.trim(); // Added phone
+  const password = document.getElementById("registerPassword").value;
+  const confirmPassword = document.getElementById("registerConfirmPassword").value;
+  const jobTitle = registerJobTitle.value.trim();
+  const message = document.getElementById("registerMessage");
+
+  if (!role) {
+    message.textContent = "Please select a role";
+    message.className = "message error-message";
+    return;
+  }
+
+  if (!name) {
+    message.textContent = "Please enter your full name";
+    message.className = "message error-message";
+    return;
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    message.textContent = "Please enter a valid email address";
+    message.className = "message error-message";
+    return;
+  }
+
+  if (role === 'staff' && !phone) {
+    message.textContent = "Please enter a phone number";
+    message.className = "message error-message";
+    return;
+  }
+
+  if (password.length < 6) {
+    message.textContent = "Password must be at least 6 characters long";
+    message.className = "message error-message";
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    message.textContent = "Passwords do not match";
+    message.className = "message error-message";
+    return;
+  }
+
+  if (role === 'staff' && !jobTitle) {
+    message.textContent = "Please enter a job title";
+    message.className = "message error-message";
+    return;
+  }
+
+  const registerEndpoints = {
+    admin: "http://localhost:5001/api/admin/register",
+    staff: "http://localhost:5001/api/staff/register",
+    donor: "http://localhost:5001/api/donor/register"
+  };
+
+  try {
+    const payload = role === 'staff' ? { name, email, password, phone, jobTitle } : { name, email, password, phone };
+    console.log('Register payload:', payload); // Debug payload
+    const res = await fetch(registerEndpoints[role], {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    console.log(`${role} register response:`, data);
+
+    if (res.ok) {
+      message.textContent = data.message || "Registration successful. Please log in.";
+      message.className = "message success-message";
+      showForm('login');
+    } else {
+      message.textContent = data.message || "Registration failed. Email may already be in use.";
+      message.className = "message error-message";
+    }
+  } catch (err) {
+    console.error(`${role} register fetch error:`, err);
+    message.textContent = "Server error. Please try again later.";
+    message.className = "message error-message";
+  }
+};
+    document.getElementById("forgotFormElement").onsubmit = async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("forgotEmail").value.trim();
+      const message = document.getElementById("forgotMessage");
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        message.textContent = "Please enter a valid email address";
+        message.className = "message error-message";
+        return;
+      }
+
+      try {
+        console.log("Sending password reset request for email:", email);
+        const res = await fetch("http://localhost:5001/api/reset-password/request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email })
+        });
+
+        const data = await res.json();
+        console.log("Reset password response:", data);
+
+        if (res.ok) {
+          message.textContent = data.message || "Password reset link sent. Check your email.";
+          message.className = "message success-message";
+          console.log("Redirecting to set_new_password.html");
+          window.location.href = "set_new_password.html";
+        } else {
+          message.textContent = data.message || "Failed to send reset link. Email may not exist.";
+          message.className = "message error-message";
+        }
+      } catch (err) {
+        console.error("Reset password fetch error:", err);
+        message.textContent = "Server error. Please try again later.";
+        message.className = "message error-message";
+      }
+    };
+  </script>
+</body>
+</html>
